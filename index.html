@@ -14,46 +14,48 @@
     body {
       margin: 0;
       padding: 0;
-      height: 100vh;
+      min-height: 100vh;
       background-color: #000;
       display: flex;
       flex-direction: column;
       justify-content: flex-start;
       align-items: center;
       font-family: 'Arial', sans-serif;
-      padding-top: 10vh; 
+      padding-top: 10vh;
+      padding-bottom: 20px;
     }
 
-    img {
-      max-width: 10%;
+    img.logo {
+      width: 120px;
       height: auto;
-      margin-bottom: 20px; 
+      margin-bottom: 15px;
     }
 
     .status-wrapper {
       display: flex;
       justify-content: center;
       width: 100%;
+      margin-bottom: 20px; 
     }
 
     .status {
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 20px; 
+      font-size: 18px;
       font-weight: bold;
       color: #fff;
-      padding: 5px 10px; 
-      background-color: rgba(255, 255, 255, 0.1); 
+      padding: 5px 10px;
+      background-color: rgba(255, 255, 255, 0.1);
       border-radius: 5px;
     }
 
     .red-dot {
-      width: 10px; 
-      height: 10px;
+      width: 8px;
+      height: 8px;
       background-color: #ff0000;
       border-radius: 50%;
-      margin-right: 10px;
+      margin-right: 8px;
       animation: blink-dot 1s infinite;
     }
 
@@ -61,26 +63,202 @@
       50% { opacity: 0.3; }
     }
 
-    .bottom-space {
-      flex-grow: 1; 
+    .bottom-content {
+      display: flex;
+      flex-direction: row;
+      justify-content: center;
+      gap: 40px;
       width: 100%;
+      max-width: 1100px;
+      margin-top: auto;
+      padding: 0 15px;
+    }
+
+    .section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      color: #fff;
+      text-align: center;
+      width: 100%;
+      max-width: 300px;
+    }
+
+    .image-container {
+      width: 100%;
+      height: 150px;
       display: flex;
       justify-content: center;
-      align-items: flex-end;
-      padding-bottom: 20px; 
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .section img {
+      width: 100%;
+      max-width: 150px;
+      height: auto;
+      max-height: 100%;
+    }
+
+    .section.stones img {
+      width: 100%;
+      max-width: 350px;
+      height: auto;
+      max-height: 100%;
+    }
+
+    .section h3 {
+      font-size: 16px;
+      margin-bottom: 5px;
+    }
+
+    .section p {
+      font-size: 13px;
+      opacity: 0.8;
+      max-width: 100%;
+      padding: 0 10px;
+    }
+
+    .section .status-wrapper {
+      margin-top: 15px;
+      margin-bottom: 10px;
+    }
+
+    
+    @media (max-width: 768px) {
+      body {
+        padding-top: 5vh;
+        padding-bottom: 15px;
+      }
+
+      img.logo {
+        width: 100px;
+      }
+
+      .status {
+        font-size: 16px;
+      }
+
+      .red-dot {
+        width: 6px;
+        height: 6px;
+      }
+
+      .bottom-content {
+        flex-direction: column;
+        gap: 30px;
+        padding: 0 10px;
+      }
+
+      .section {
+        max-width: 100%;
+      }
+
+      .image-container {
+        height: 120px;
+      }
+
+      .section img {
+        max-width: 120px;
+      }
+
+      .section.stones img {
+        max-width: 250px;
+      }
+
+      .section p {
+        font-size: 12px;
+        padding: 0 15px;
+      }
+    }
+
+   
+    @media (min-width: 1200px) {
+      img.logo {
+        width: 150px;
+      }
+
+      .status {
+        font-size: 20px;
+      }
+
+      .red-dot {
+        width: 10px;
+        height: 10px;
+      }
+
+      .bottom-content {
+        gap: 70px;
+      }
+
+      .image-container {
+        height: 200px;
+      }
+
+      .section img {
+        max-width: 150px;
+      }
+
+      .section.stones img {
+        max-width: 350px;
+      }
+
+      .section p {
+        font-size: 14px;
+        max-width: 200px;
+        padding: 0;
+      }
     }
   </style>
 </head>
 <body>
-  <img src="logo.png" alt="Kangkong Hunters Logo" />
+  <img src="logo.png" alt="Kangkong Hunters Logo" class="logo" />
   <div class="status-wrapper">
     <div class="status">
       <div class="red-dot"></div>
       <span>IN PROGRESS</span>
     </div>
   </div>
-  <div class="bottom-space">
-
+  <div class="bottom-content">
+    <div class="section">
+      <div class="image-container">
+        <img src="lootbox.png" alt="Loot Box" />
+      </div>
+      <div class="status-wrapper">
+        <div class="status">
+          <div class="red-dot"></div>
+          <span>Coming soon</span>
+        </div>
+      </div>
+      <p>Unlock to discover items and boosts!</p>
+	  <p> (ERC-1155, Unlimited Supply)</p>
+    </div>
+    <div class="section stones">
+      <div class="image-container">
+        <img src="stones.png" alt="Stones" />
+      </div>
+      <div class="status-wrapper">
+        <div class="status">
+          <div class="red-dot"></div>
+          <span>Coming soon</span>
+        </div>
+      </div>
+      <p>Collect Common Civilian's, Uncommon Looter's, and Rare Hunter's Stones for power-ups.</p>
+	  <p> (ERC-1155, Limited Supply)</p>
+    </div>
+    <div class="section">
+      <div class="image-container">
+        <img src="nft.png" alt="NFT" />
+      </div>
+      <div class="status-wrapper">
+        <div class="status">
+          <div class="red-dot"></div>
+          <span>Coming soon</span>
+        </div>
+      </div>
+      <p>Kangkong Hunters NFTs!</p>
+	  <p> (ERC-721, Limited Supply)</p>
+    </div>
   </div>
 </body>
 </html>
