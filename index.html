@@ -4,262 +4,755 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Kangkong Hunters</title>
-      <link rel="icon" type="image/png" href="/logo.png">
+  <link rel="icon" type="image/png" href="./logo.png">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/web3/1.7.5/web3.min.js"></script>
   <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
-    body {
-      margin: 0;
-      padding: 0;
-      min-height: 100vh;
-      background-color: #000;
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Arial', sans-serif; }
+    body { min-height: 100vh; background: #000; color: #fff; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px; }
+    button { padding: 12px 24px; border: none; border-radius: 8px; color: #fff; cursor: pointer; font-size: 1rem; text-transform: uppercase; letter-spacing: 1px; background: linear-gradient(45deg, #ff0066, #ffcc00); box-shadow: 0 0 10px rgba(255, 0, 102, 0.5); transition: transform 0.2s, box-shadow 0.2s; position: relative; overflow: hidden; }
+    button:hover { transform: scale(1.05); box-shadow: 0 0 20px rgba(255, 0, 102, 0.8); }
+    button::before { content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent); transition: left 0.3s; }
+    button:hover::before { left: 100%; }
+    .enter-button { background: linear-gradient(45deg, #007bff, #00ccff); box-shadow: 0 0 10px rgba(0, 123, 255, 0.5); }
+    .ronin-btn { background: linear-gradient(45deg, #28a745, #00cc99); box-shadow: 0 0 10px rgba(40, 167, 69, 0.5); }
+    .guest-btn { background: linear-gradient(45deg, #6c757d, #adb5bd); box-shadow: 0 0 10px rgba(108, 117, 125, 0.5); }
+    .logout-button { background: linear-gradient(45deg, #dc3545, #ff6666); box-shadow: 0 0 10px rgba(220, 53, 69, 0.5); }
+    .chat-input button { padding: 10px 20px; font-size: 0.9rem; }
+    .logo-section { display: flex; flex-direction: column; align-items: center; justify-content: center; margin-bottom: 20px; }
+    img.logo { width: 120px; height: auto; margin-bottom: 15px; }
+    .status-wrapper { display: flex; justify-content: center; margin-bottom: 15px; }
+    .status { display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold; color: #fff; padding: 5px 10px; background: rgba(255, 255, 255, 0.1); border-radius: 5px; }
+    .red-dot { width: 8px; height: 8px; background: #ff0000; border-radius: 50%; margin-right: 8px; animation: blink-dot 1s infinite; }
+    @keyframes blink-dot { 50% { opacity: 0.3; } }
+    .container { display: none; flex-direction: row; height: calc(100vh - 40px); width: 100%; max-width: 1100px; }
+    .game-section { flex: 3; padding: 20px; background: #2a2a2a; display: flex; flex-direction: column; align-items: center; border-radius: 8px; }
+    .game-placeholder { width: 100%; height: 100%; background: #3a3a3a; border-radius: 8px; display: flex; justify-content: center; align-items: center; padding: 20px; }
+    .bottom-content { display: flex; flex-direction: row; justify-content: center; gap: 40px; width: 100%; max-width: 1100px; padding: 0 15px; }
+    .section { display: flex; flex-direction: column; align-items: center; color: #fff; text-align: center; width: 100%; max-width: 300px; transition: transform 0.2s; }
+    .section:hover { transform: scale(1.05); }
+    .image-container { width: 100%; height: 150px; display: flex; justify-content: center; align-items: center; margin-bottom: 10px; border: 2px solid transparent; border-radius: 8px; transition: border 0.2s, box-shadow 0.2s; }
+    .section:hover .image-container { border: 2px solid transparent; background: linear-gradient(45deg, #ff0066, #ffcc00); background-clip: padding-box; box-shadow: 0 0 20px rgba(255, 0, 102, 0.8); }
+    .section img { width: 100%; max-width: 150px; height: auto; max-height: 100%; }
+    .section.stones img { max-width: 350px; }
+    .section p { font-size: 13px; opacity: 0.8; max-width: 100%; padding: 0 10px; }
+    .section .status-wrapper { margin-top: 15px; margin-bottom: 10px; }
+    .chat-sidebar { flex: 1; background: #333; padding: 20px; display: flex; flex-direction: column; border-left: 1px solid #444; position: relative; border-radius: 8px; }
+    .chat-sidebar h2 { margin-bottom: 10px; font-size: 1.5rem; }
+    .wallet-info { margin-bottom: 10px; font-size: 0.9rem; color: #aaa; word-break: break-all; }
+    .chat-note { font-size: 0.8rem; color: #aaa; margin-bottom: 10px; font-style: italic; }
+    .chat-messages { flex: 1; background: #444; border-radius: 8px; padding: 10px; overflow-y: auto; margin-bottom: 20px; }
+    .chat-messages p { margin: 5px 0; padding: 8px; background: #555; border-radius: 5px; cursor: pointer; }
+    .chat-messages .private { background: #663399; color: #fff; font-style: italic; }
+    .chat-messages .error { background: #dc3545; color: #fff; text-align: center; }
+    .chat-input { display: flex; flex-direction: column; gap: 10px; position: relative; z-index: 1000; }
+    .chat-input select { padding: 10px; border: none; border-radius: 5px; background: #555; color: #fff; font-size: 1rem; pointer-events: auto; }
+    .chat-input select:disabled { background: #444; cursor: not-allowed; opacity: 0.7; }
+    .chat-input input { flex: 1; padding: 10px; border: none; border-radius: 5px; background: #555; color: #fff; font-size: 1rem; pointer-events: auto; }
+    .chat-input input:disabled { background: #444; cursor: not-allowed; opacity: 0.7; }
+    .chat-input input::placeholder { color: #aaa; }
+    .wallet-connect-screen { display: none; justify-content: center; align-items: center; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.9); flex-direction: column; opacity: 0; transition: opacity 0.5s ease-in-out; z-index: 2000; }
+    .wallet-connect-screen.show { display: flex; opacity: 1; }
+    .wallet-connect-screen .auth-buttons { display: flex; flex-direction: column; gap: 10px; }
+    .username-modal { display: none; justify-content: center; align-items: center; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); z-index: 2000; }
+    .username-box { background: #333; padding: 30px; border-radius: 8px; width: 400px; text-align: center; }
+    .username-box h2 { margin-bottom: 20px; }
+    .username-box p { margin-bottom: 20px; font-size: 0.9rem; color: #aaa; }
+    .username-box input { width: 100%; padding: 10px; margin: 10px 0; border: none; border-radius: 5px; background: #555; color: #fff; pointer-events: auto; }
+    .chathead {
+      position: fixed;
+      width: 300px;
+      height: 400px;
+      background: #333;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
       display: flex;
       flex-direction: column;
-      justify-content: flex-start;
-      align-items: center;
-      font-family: 'Arial', sans-serif;
-      padding-top: 10vh;
-      padding-bottom: 20px;
+      z-index: 3000;
+      overflow: hidden;
     }
-
-    img.logo {
-      width: 120px;
-      height: auto;
-      margin-bottom: 15px;
-    }
-
-    .status-wrapper {
+    .chathead-header {
+      background: #444;
+      padding: 10px;
+      cursor: move;
       display: flex;
-      justify-content: center;
-      width: 100%;
-      margin-bottom: 20px; 
-    }
-
-    .status {
-      display: flex;
+      justify-content: space-between;
       align-items: center;
-      justify-content: center;
-      font-size: 18px;
       font-weight: bold;
+    }
+    .chathead-header .close-btn {
+      background: #dc3545;
+      border: none;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
       color: #fff;
-      padding: 5px 10px;
-      background-color: rgba(255, 255, 255, 0.1);
+      cursor: pointer;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 12px;
+    }
+    .chathead-messages {
+      flex: 1;
+      background: #444;
+      padding: 10px;
+      overflow-y: auto;
+      margin-bottom: 10px;
+    }
+    .chathead-messages p {
+      margin: 5px 0;
+      padding: 8px;
+      background: #555;
       border-radius: 5px;
     }
-
-    .red-dot {
-      width: 8px;
-      height: 8px;
-      background-color: #ff0000;
-      border-radius: 50%;
-      margin-right: 8px;
-      animation: blink-dot 1s infinite;
-    }
-
-    @keyframes blink-dot {
-      50% { opacity: 0.3; }
-    }
-
-    .bottom-content {
-      display: flex;
-      flex-direction: row;
-      justify-content: center;
-      gap: 40px;
-      width: 100%;
-      max-width: 1100px;
-      margin-top: auto;
-      padding: 0 15px;
-    }
-
-    .section {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
+    .chathead-messages .private {
+      background: #663399;
       color: #fff;
-      text-align: center;
-      width: 100%;
-      max-width: 300px;
+      font-style: italic;
     }
-
-    .image-container {
-      width: 100%;
-      height: 150px;
+    .chathead-input {
       display: flex;
-      justify-content: center;
-      align-items: center;
-      margin-bottom: 10px;
+      padding: 10px;
+      gap: 10px;
     }
-
-    .section img {
-      width: 100%;
-      max-width: 150px;
-      height: auto;
-      max-height: 100%;
+    .chathead-input input {
+      flex: 1;
+      padding: 8px;
+      border: none;
+      border-radius: 5px;
+      background: #555;
+      color: #fff;
+      font-size: 0.9rem;
     }
-
-    .section.stones img {
-      width: 100%;
-      max-width: 350px;
-      height: auto;
-      max-height: 100%;
+    .chathead-input button {
+      padding: 8px 16px;
+      font-size: 0.9rem;
     }
-
-    .section h3 {
-      font-size: 16px;
-      margin-bottom: 5px;
-    }
-
-    .section p {
-      font-size: 13px;
-      opacity: 0.8;
-      max-width: 100%;
-      padding: 0 10px;
-    }
-
-    .section .status-wrapper {
-      margin-top: 15px;
-      margin-bottom: 10px;
-    }
-
-    
     @media (max-width: 768px) {
-      body {
-        padding-top: 5vh;
-        padding-bottom: 15px;
-      }
-
-      img.logo {
-        width: 100px;
-      }
-
-      .status {
-        font-size: 16px;
-      }
-
-      .red-dot {
-        width: 6px;
-        height: 6px;
-      }
-
-      .bottom-content {
-        flex-direction: column;
-        gap: 30px;
-        padding: 0 10px;
-      }
-
-      .section {
-        max-width: 100%;
-      }
-
-      .image-container {
-        height: 120px;
-      }
-
-      .section img {
-        max-width: 120px;
-      }
-
-      .section.stones img {
-        max-width: 250px;
-      }
-
-      .section p {
-        font-size: 12px;
-        padding: 0 15px;
-      }
+      body { padding: 15px; }
+      img.logo { width: 100px; }
+      .status { font-size: 16px; }
+      .red-dot { width: 6px; height: 6px; }
+      .container { flex-direction: column; height: auto; }
+      .game-section, .chat-sidebar { width: 100%; margin-bottom: 20px; }
+      .chat-sidebar { border-left: none; border-top: 1px solid #444; }
+      .bottom-content { flex-direction: column; gap: 30px; padding: 0 10px; }
+      .section { max-width: 100%; }
+      .image-container { height: 120px; }
+      .section img { max-width: 120px; }
+      .section.stones img { max-width: 250px; }
+      .section p { font-size: 12px; padding: 0 15px; }
+      button { padding: 10px 20px; font-size: 0.9rem; }
+      .chathead { width: 90%; height: 300px; }
     }
-
-   
     @media (min-width: 1200px) {
-      img.logo {
-        width: 150px;
-      }
-
-      .status {
-        font-size: 20px;
-      }
-
-      .red-dot {
-        width: 10px;
-        height: 10px;
-      }
-
-      .bottom-content {
-        gap: 70px;
-      }
-
-      .image-container {
-        height: 200px;
-      }
-
-      .section img {
-        max-width: 150px;
-      }
-
-      .section.stones img {
-        max-width: 350px;
-      }
-
-      .section p {
-        font-size: 14px;
-        max-width: 200px;
-        padding: 0;
-      }
+      img.logo { width: 150px; }
+      .status { font-size: 20px; }
+      .red-dot { width: 10px; height: 10px; }
+      .bottom-content { gap: 70px; }
+      .image-container { height: 200px; }
+      .section img { max-width: 150px; }
+      .section.stones img { max-width: 350px; }
+      .section p { font-size: 14px; max-width: 200px; padding: 0; }
     }
   </style>
 </head>
 <body>
-  <img src="logo.png" alt="Kangkong Hunters Logo" class="logo" />
-  <div class="status-wrapper">
-    <div class="status">
-      <div class="red-dot"></div>
-      <span>IN PROGRESS</span>
+  <div class="logo-section">
+    <img src="./logo.png" alt="Kangkong Hunters Logo" class="logo" />
+    <div class="status-wrapper">
+      <div class="status">
+        <div class="red-dot"></div>
+        <span>IN PROGRESS</span>
+      </div>
+    </div>
+    <button class="enter-button" id="enterButton">ENTER</button>
+  </div>
+
+  <div class="wallet-connect-screen" id="walletConnectScreen">
+    <div class="auth-buttons">
+      <button class="ronin-btn" id="connectRoninBtn">Connect Ronin Wallet</button>
+      <button class="guest-btn" id="viewAsGuestBtn">View as Guest</button>
     </div>
   </div>
-  <div class="bottom-content">
-    <div class="section">
-      <div class="image-container">
-        <img src="lootbox.png" alt="Loot Box" />
-      </div>
-      <div class="status-wrapper">
-        <div class="status">
-          <div class="red-dot"></div>
-          <span>Coming soon</span>
-        </div>
-      </div>
-      <p>Unlock to discover items and boosts!</p>
-	  <p> (ERC-1155, Unlimited Supply)</p>
-    </div>
-    <div class="section stones">
-      <div class="image-container">
-        <img src="stones.png" alt="Stones" />
-      </div>
-      <div class="status-wrapper">
-        <div class="status">
-          <div class="red-dot"></div>
-          <span>Coming soon</span>
-        </div>
-      </div>
-      <p>Collect Civilian's, Looter's, and Hunter's Stones for power-ups.</p>
-	  <p> (ERC-1155, Limited Supply)</p>
-    </div>
-    <div class="section">
-      <div class="image-container">
-        <img src="nft.png" alt="NFT" />
-      </div>
-      <div class="status-wrapper">
-        <div class="status">
-          <div class="red-dot"></div>
-          <span>Coming soon</span>
-        </div>
-      </div>
-      <p>Kangkong Hunters NFTs!</p>
-	  <p> (ERC-721, Limited Supply)</p>
+
+  <div class="username-modal" id="usernameModal">
+    <div class="username-box">
+      <h2>Set Your Username</h2>
+      <p>Enter a unique username for this session. It will be remembered until you logout.</p>
+      <input type="text" id="usernameInput" placeholder="Enter your username" required />
+      <button id="setUsernameBtn">Submit</button>
     </div>
   </div>
+
+  <div class="container" id="mainContainer">
+    <div class="game-section">
+      <div class="game-placeholder">
+        <div class="bottom-content">
+          <div class="section">
+            <div class="image-container">
+              <img src="./lootbox.png" alt="Loot Box" />
+            </div>
+            <div class="status-wrapper">
+              <div class="status">
+                <div class="red-dot"></div>
+                <span>Coming soon</span>
+              </div>
+            </div>
+            <p>Unlock to discover items and boosts!</p>
+            <p>(ERC-1155, Unlimited Supply)</p>
+          </div>
+          <div class="section stones">
+            <div class="image-container">
+              <img src="./stones.png" alt="Stones" />
+            </div>
+            <div class="status-wrapper">
+              <div class="status">
+                <div class="red-dot"></div>
+                <span>Coming soon</span>
+              </div>
+            </div>
+            <p>Collect Civilian's, Looter's, and Hunter's Stones for power-ups.</p>
+            <p>(ERC-1155, Limited Supply)</p>
+          </div>
+          <div class="section">
+            <div class="image-container">
+              <img src="./nft.png" alt="NFT" />
+            </div>
+            <div class="status-wrapper">
+              <div class="status">
+                <div class="red-dot"></div>
+                <span>Coming soon</span>
+              </div>
+            </div>
+            <p>Kangkong Hunters NFTs!</p>
+            <p>(ERC-721, Limited Supply)</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="chat-sidebar">
+      <h2>Chat</h2>
+      <div class="wallet-info" id="walletInfo">User: Not connected</div>
+      <div class="chat-note">Messages are stored on the server until full launch. Private messages are encrypted.</div>
+      <button class="logout-button" id="logoutBtn">Logout</button>
+      <div class="chat-messages" id="chatMessages"></div>
+      <div class="chat-input" id="chatInputContainer">
+        <select id="chatRecipient" disabled>
+          <option value="public">Public Chat</option>
+        </select>
+        <input type="text" id="chatInput" placeholder="Connect wallet to chat..." disabled />
+        <button id="sendMessageBtn" onclick="sendMessage()" disabled>Send</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = 'https://kangkong-hunters-worker.kangkonghunters.workers.dev';
+    const WS_URL = 'wss://kangkong-hunters-worker.kangkonghunters.workers.dev/chat/secure';
+
+    let walletAddress = null, walletProvider = null, currentUser = null, isGuest = false, knownUsers = new Set(), ws = null, authToken = null, userKeyPair = null;
+    const logoSection = document.querySelector('.logo-section'), enterButton = document.getElementById('enterButton'), walletConnectScreen = document.getElementById('walletConnectScreen'), usernameModal = document.getElementById('usernameModal'), mainContainer = document.getElementById('mainContainer'), walletInfo = document.getElementById('walletInfo'), chatMessages = document.getElementById('chatMessages'), chatInput = document.getElementById('chatInput'), sendMessageBtn = document.getElementById('sendMessageBtn'), logoutBtn = document.getElementById('logoutBtn'), usernameInput = document.getElementById('usernameInput'), chatRecipient = document.getElementById('chatRecipient');
+    const chatheads = {};
+    let reconnectAttempts = 0, maxReconnectAttempts = 5;
+
+    function sanitizeHTML(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    function displayError(message) {
+      const errorElement = document.createElement('p');
+      errorElement.classList.add('error');
+      errorElement.textContent = message;
+      chatMessages.appendChild(errorElement);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    async function generateKeyPair() {
+      userKeyPair = await crypto.subtle.generateKey({ name: 'RSA-OAEP', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' }, true, ['encrypt', 'decrypt']);
+      const publicKey = await crypto.subtle.exportKey('jwk', userKeyPair.publicKey);
+      try {
+        const response = await fetch(`${API_URL}/api/public-key`, { method: 'POST', headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ username: currentUser, publicKey }) });
+        if (!response.ok) throw new Error(`Failed to store public key: ${response.status}`);
+      } catch (error) {
+        console.error('Public key storage failed:', error);
+        displayError('Failed to initialize encryption. Private messages may not work.');
+      }
+    }
+
+    async function encryptMessage(recipient, text) {
+      if (recipient === 'public') return text;
+      const response = await fetch(`${API_URL}/api/public-key/${recipient}`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+      if (!response.ok) throw new Error(`Failed to fetch public key: ${response.status}`);
+      const { publicKey } = await response.json();
+      const key = await crypto.subtle.importKey('jwk', publicKey, { name: 'RSA-OAEP', hash: 'SHA-256' }, false, ['encrypt']);
+      const encoded = new TextEncoder().encode(text);
+      const encrypted = await crypto.subtle.encrypt({ name: 'RSA-OAEP' }, key, encoded);
+      return btoa(String.fromCharCode(...new Uint8Array(encrypted)));
+    }
+
+    async function decryptMessage(encryptedText) {
+      try {
+        const encrypted = Uint8Array.from(atob(encryptedText), c => c.charCodeAt(0));
+        const decrypted = await crypto.subtle.decrypt({ name: 'RSA-OAEP' }, userKeyPair.privateKey, encrypted);
+        return new TextDecoder().decode(decrypted);
+      } catch (error) {
+        console.error('Decryption failed:', error);
+        return '[Decryption failed]';
+      }
+    }
+
+    async function checkUsernameAvailability(username) {
+      try {
+        const response = await fetch(`${API_URL}/api/check-username/${username}`);
+        if (!response.ok) throw new Error(`Failed to check username: ${response.status}`);
+        const { available } = await response.json();
+        return available;
+      } catch (error) {
+        console.error('Username check failed:', error);
+        throw error;
+      }
+    }
+
+    async function refreshToken() {
+      try {
+        const message = `Sign to refresh authentication with Kangkong Hunters at ${Date.now()}`;
+        const signature = await walletProvider.request({ method: 'personal_sign', params: [message, walletAddress] });
+        const response = await fetch(`${API_URL}/api/refresh-token`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ walletAddress, message, signature }) });
+        if (!response.ok) throw new Error(`Token refresh failed: ${response.status}`);
+        const { token } = await response.json();
+        authToken = token;
+        reconnectAttempts = 0;
+        connectWebSocket();
+      } catch (error) {
+        console.error('Token refresh failed:', error);
+        displayError('Session expired. Please reconnect your wallet.');
+        logout();
+      }
+    }
+
+    async function loadMessages() {
+      try {
+        const headers = isGuest ? {} : { Authorization: `Bearer ${authToken}` };
+        const response = await fetch(`${API_URL}/api/messages`, { headers });
+        if (!response.ok) throw new Error(`Failed to fetch messages: ${response.status} ${response.statusText}`);
+        const messages = await response.json();
+        chatMessages.innerHTML = '';
+        if (messages.length === 0) {
+          const placeholder = document.createElement('p');
+          placeholder.textContent = 'No messages yet. Send one!';
+          chatMessages.appendChild(placeholder);
+        } else {
+          const seenMessages = new Set();
+          for (const msg of messages) {
+            const messageKey = `${msg.sender}:${msg.timestamp}:${msg.text}`;
+            if (seenMessages.has(messageKey)) continue;
+            seenMessages.add(messageKey);
+            const messageElement = document.createElement('p');
+            let displayText = msg.isEncrypted ? await decryptMessage(msg.text) : msg.text;
+            if (msg.recipient === 'public') {
+              messageElement.textContent = `${sanitizeHTML(msg.sender)}: ${sanitizeHTML(displayText)}`;
+              knownUsers.add(msg.sender);
+            } else if (msg.recipient === currentUser || msg.sender === currentUser) {
+              messageElement.classList.add('private');
+              messageElement.textContent = `[PM ${sanitizeHTML(msg.sender)} -> ${sanitizeHTML(msg.recipient)}]: ${sanitizeHTML(displayText)}`;
+              knownUsers.add(msg.sender);
+              knownUsers.add(msg.recipient);
+              messageElement.onclick = () => {
+                const otherUser = msg.sender === currentUser ? msg.recipient : msg.sender;
+                createChathead(otherUser);
+                addMessageToChathead(otherUser, msg.sender, displayText, msg.isEncrypted);
+              };
+            }
+            chatMessages.appendChild(messageElement);
+          }
+        }
+        updateRecipientList();
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      } catch (error) {
+        console.error('Failed to load messages:', error);
+        displayError(`Failed to load messages: ${error.message}. Check connection and try again.`);
+      }
+    }
+
+    function updateRecipientList() {
+      chatRecipient.innerHTML = '<option value="public">Public Chat</option>';
+      knownUsers.forEach((user) => {
+        if (user !== currentUser) {
+          const option = document.createElement('option');
+          option.value = user;
+          option.textContent = user;
+          chatRecipient.appendChild(option);
+        }
+      });
+      chatRecipient.onchange = () => {
+        if (chatRecipient.value !== 'public') {
+          createChathead(chatRecipient.value);
+          chatRecipient.value = 'public';
+        }
+      };
+    }
+
+    function connectWebSocket() {
+      if (!authToken && !isGuest) return;
+      ws = new WebSocket(`${WS_URL}?token=${authToken || ''}`);
+      ws.onopen = () => {
+        reconnectAttempts = 0;
+        setInterval(() => {
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'ping' }));
+          }
+        }, 30000);
+      };
+      ws.onmessage = async (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'pong') return;
+          if (data.error) {
+            displayError(data.error);
+            return;
+          }
+          const msg = data;
+          const messageElement = document.createElement('p');
+          let displayText = msg.isEncrypted ? await decryptMessage(msg.text) : msg.text;
+          if (msg.recipient === 'public') {
+            messageElement.textContent = `${sanitizeHTML(msg.sender)}: ${sanitizeHTML(displayText)}`;
+            knownUsers.add(msg.sender);
+            chatMessages.appendChild(messageElement);
+          } else if (msg.recipient === currentUser || msg.sender === currentUser) {
+            messageElement.classList.add('private');
+            messageElement.textContent = `[PM ${sanitizeHTML(msg.sender)} -> ${sanitizeHTML(msg.recipient)}]: ${sanitizeHTML(displayText)}`;
+            knownUsers.add(msg.sender);
+            knownUsers.add(msg.recipient);
+            const otherUser = msg.sender === currentUser ? msg.recipient : msg.sender;
+            createChathead(otherUser);
+            addMessageToChathead(otherUser, msg.sender, displayText, msg.isEncrypted);
+            messageElement.onclick = () => createChathead(otherUser);
+            chatMessages.appendChild(messageElement);
+          }
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+          updateRecipientList();
+        } catch (error) {
+          console.error('WebSocket message error:', error);
+          displayError('Error receiving message: ' + error.message);
+        }
+      };
+      ws.onclose = () => {
+        if (!isGuest && authToken && reconnectAttempts < maxReconnectAttempts) {
+          const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+          setTimeout(() => {
+            reconnectAttempts++;
+            refreshToken();
+          }, delay);
+        } else {
+          displayError('Lost connection. Please reconnect your wallet.');
+        }
+      };
+      ws.onerror = () => {
+        if (!isGuest && authToken && reconnectAttempts < maxReconnectAttempts) {
+          const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+          setTimeout(() => {
+            reconnectAttempts++;
+            refreshToken();
+          }, delay);
+        } else {
+          displayError('Connection error. Please check your network and try again.');
+        }
+      };
+    }
+
+    function createChathead(recipient) {
+      if (chatheads[recipient]) {
+        chatheads[recipient].element.style.display = 'block';
+        chatheads[recipient].messagesElement.scrollTop = chatheads[recipient].messagesElement.scrollHeight;
+        return;
+      }
+
+      const chathead = document.createElement('div');
+      chathead.classList.add('chathead');
+      chathead.style.top = `${Math.random() * (window.innerHeight - 400)}px`;
+      chathead.style.left = `${Math.random() * (window.innerWidth - 300)}px`;
+
+      const header = document.createElement('div');
+      header.classList.add('chathead-header');
+      header.textContent = `Chat with ${sanitizeHTML(recipient)}`;
+
+      const closeBtn = document.createElement('button');
+      closeBtn.classList.add('close-btn');
+      closeBtn.textContent = '×';
+      closeBtn.onclick = () => {
+        chathead.style.display = 'none';
+      };
+      header.appendChild(closeBtn);
+
+      const messages = document.createElement('div');
+      messages.classList.add('chathead-messages');
+
+      const inputContainer = document.createElement('div');
+      inputContainer.classList.add('chathead-input');
+
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.placeholder = 'Type a message...';
+      input.addEventListener('keypress', async (e) => {
+        if (e.key === 'Enter' && input.value.trim()) {
+          await sendPrivateMessage(recipient, input.value.trim(), messages);
+          input.value = '';
+        }
+      });
+
+      const sendBtn = document.createElement('button');
+      sendBtn.textContent = 'Send';
+      sendBtn.onclick = async () => {
+        if (input.value.trim()) {
+          await sendPrivateMessage(recipient, input.value.trim(), messages);
+          input.value = '';
+        }
+      };
+
+      inputContainer.appendChild(input);
+      inputContainer.appendChild(sendBtn);
+
+      chathead.appendChild(header);
+      chathead.appendChild(messages);
+      chathead.appendChild(inputContainer);
+      document.body.appendChild(chathead);
+
+      chatheads[recipient] = { element: chathead, messagesElement: messages, inputElement: input };
+
+      let isDragging = false, currentX = 0, currentY = 0, initialX, initialY;
+      header.addEventListener('mousedown', (e) => {
+        initialX = e.clientX - currentX;
+        initialY = e.clientY - currentY;
+        isDragging = true;
+      });
+      document.addEventListener('mousemove', (e) => {
+        if (isDragging) {
+          e.preventDefault();
+          currentX = e.clientX - initialX;
+          currentY = e.clientY - initialY;
+          chathead.style.left = `${currentX}px`;
+          chathead.style.top = `${currentY}px`;
+          currentX = Math.max(0, Math.min(currentX, window.innerWidth - chathead.offsetWidth));
+          currentY = Math.max(0, Math.min(currentY, window.innerHeight - chathead.offsetHeight));
+        }
+      });
+      document.addEventListener('mouseup', () => {
+        isDragging = false;
+      });
+
+      loadChatheadMessages(recipient);
+    }
+
+    async function loadChatheadMessages(recipient) {
+      try {
+        const headers = { Authorization: `Bearer ${authToken}` };
+        const response = await fetch(`${API_URL}/api/messages`, { headers });
+        if (!response.ok) throw new Error(`Failed to fetch messages: ${response.status}`);
+        const messages = await response.json();
+        const chatheadMessages = chatheads[recipient].messagesElement;
+        chatheadMessages.innerHTML = '';
+        for (const msg of messages) {
+          if ((msg.recipient === recipient && msg.sender === currentUser) || (msg.sender === recipient && msg.recipient === currentUser)) {
+            const displayText = msg.isEncrypted ? await decryptMessage(msg.text) : msg.text;
+            addMessageToChathead(recipient, msg.sender, displayText, msg.isEncrypted);
+          }
+        }
+        chatheadMessages.scrollTop = chatheadMessages.scrollHeight;
+      } catch (error) {
+        console.error('Failed to load chathead messages:', error);
+      }
+    }
+
+    function addMessageToChathead(recipient, sender, text, isEncrypted) {
+      if (!chatheads[recipient]) return;
+      const messages = chatheads[recipient].messagesElement;
+      const messageElement = document.createElement('p');
+      messageElement.textContent = `${sanitizeHTML(sender)}: ${sanitizeHTML(text)}`;
+      if (isEncrypted) messageElement.classList.add('private');
+      messages.appendChild(messageElement);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    async function sendPrivateMessage(recipient, text, messagesElement) {
+      if (!currentUser || isGuest) {
+        alert('Connect your wallet to chat!');
+        return;
+      }
+      try {
+        const encryptedText = await encryptMessage(recipient, text);
+        const message = { sender: currentUser, recipient, text: encryptedText, timestamp: Date.now(), isEncrypted: true };
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(message));
+          addMessageToChathead(recipient, currentUser, text, true);
+        } else {
+          throw new Error('WebSocket not connected');
+        }
+      } catch (error) {
+        console.error('Send private message failed:', error);
+        displayError(`Failed to send private message: ${error.message}. Try again.`);
+      }
+    }
+
+    async function sendMessage() {
+      if (!currentUser || isGuest) {
+        alert('Connect your wallet to chat!');
+        return;
+      }
+      const messageText = chatInput.value.trim();
+      if (messageText === '') return;
+      const recipient = chatRecipient.value;
+      try {
+        const encryptedText = await encryptMessage(recipient, messageText);
+        const message = { sender: currentUser, recipient, text: encryptedText, timestamp: Date.now(), isEncrypted: recipient !== 'public' };
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(message));
+          chatInput.value = '';
+        } else {
+          throw new Error('WebSocket not connected');
+        }
+      } catch (error) {
+        console.error('Send message failed:', error);
+        displayError(`Failed to send message: ${error.message}. Try again.`);
+      }
+    }
+
+    async function connectRoninWallet() {
+      try {
+        if (!window.ronin || !window.ronin.provider) throw new Error('Ronin Wallet extension not detected. Install it from https://wallet.roninchain.com/');
+        walletProvider = window.ronin.provider;
+        const web3 = new Web3(walletProvider);
+        const accounts = await walletProvider.request({ method: 'eth_requestAccounts' });
+        walletAddress = accounts[0];
+        const savedUsername = localStorage.getItem(`username:${walletAddress}`);
+        if (savedUsername) {
+          currentUser = savedUsername;
+          const message = `Sign to authenticate with Kangkong Hunters at ${Date.now()}`;
+          const signature = await walletProvider.request({ method: 'personal_sign', params: [message, walletAddress] });
+          const response = await fetch(`${API_URL}/api/auth`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ walletAddress, message, signature }) });
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`Authentication failed: ${response.status} ${errorData.error || ''}`);
+          }
+          const { token } = await response.json();
+          authToken = token;
+          handleAuthSuccess(walletAddress);
+        } else {
+          const message = `Sign to authenticate with Kangkong Hunters at ${Date.now()}`;
+          const signature = await walletProvider.request({ method: 'personal_sign', params: [message, walletAddress] });
+          const response = await fetch(`${API_URL}/api/auth`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ walletAddress, message, signature }) });
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`Authentication failed: ${response.status} ${errorData.error || ''}`);
+          }
+          const { token } = await response.json();
+          authToken = token;
+          walletConnectScreen.classList.remove('show');
+          usernameModal.style.display = 'flex';
+        }
+      } catch (error) {
+        console.error('Ronin Wallet connection failed:', error);
+        alert(`Failed to connect Ronin Wallet: ${error.message}. Try again or view as guest.`);
+      }
+    }
+
+    function viewAsGuest() {
+      isGuest = true;
+      walletInfo.textContent = 'User: Guest';
+      chatInput.disabled = true;
+      chatRecipient.disabled = true;
+      sendMessageBtn.disabled = true;
+      logoutBtn.textContent = 'Back';
+      walletConnectScreen.classList.remove('show');
+      mainContainer.style.display = 'flex';
+      loadMessages();
+    }
+
+    function handleAuthSuccess(userId) {
+      walletInfo.textContent = `Wallet: ${userId.substring(0, 6)}...${userId.substring(userId.length - 4)}`;
+      if (currentUser) {
+        walletConnectScreen.classList.remove('show');
+        mainContainer.style.display = 'flex';
+        generateKeyPair().then(() => {
+          initializeChat();
+        }).catch(error => {
+          console.error('Key pair generation failed:', error);
+          displayError('Failed to initialize encryption. Private messages may not work.');
+        });
+      } else {
+        walletConnectScreen.classList.remove('show');
+        usernameModal.style.display = 'flex';
+      }
+    }
+
+    async function setUsername() {
+      const username = usernameInput.value.trim();
+      if (!username) {
+        alert('Please enter a username!');
+        return;
+      }
+      try {
+        const isAvailable = await checkUsernameAvailability(username);
+        if (!isAvailable) {
+          alert('Username is already taken! Please choose another.');
+          return;
+        }
+        currentUser = username;
+        localStorage.setItem(`username:${walletAddress}`, username);
+        knownUsers.add(currentUser);
+        chatInput.disabled = false;
+        chatRecipient.disabled = false;
+        sendMessageBtn.disabled = false;
+        usernameModal.style.display = 'none';
+        mainContainer.style.display = 'flex';
+        generateKeyPair().then(() => {
+          initializeChat();
+        }).catch(error => {
+          console.error('Key pair generation failed:', error);
+          displayError('Failed to initialize encryption. Private messages may not work.');
+        });
+      } catch (error) {
+        console.error('Failed to set username:', error);
+        alert('Failed to set username. Please try again.');
+      }
+    }
+
+    function initializeChat() {
+      if (isGuest) {
+        loadMessages();
+      } else if (authToken && currentUser) {
+        loadMessages();
+        connectWebSocket();
+      }
+    }
+
+    function logout() {
+      if (ws) ws.close();
+      if (walletProvider && walletProvider.disconnect && !isGuest) walletProvider.disconnect();
+      localStorage.removeItem(`username:${walletAddress}`);
+      walletAddress = null; walletProvider = null; currentUser = null; isGuest = false; authToken = null; userKeyPair = null; knownUsers.clear();
+      walletInfo.textContent = 'User: Not connected';
+      chatMessages.innerHTML = '';
+      chatInput.disabled = true; chatRecipient.disabled = true; sendMessageBtn.disabled = true; logoutBtn.textContent = 'Logout';
+      mainContainer.style.display = 'none'; logoSection.style.display = 'flex';
+      Object.values(chatheads).forEach(chathead => chathead.element.remove());
+      Object.keys(chatheads).forEach(key => delete chatheads[key]);
+      reconnectAttempts = 0;
+    }
+
+    enterButton.addEventListener('click', () => {
+      logoSection.style.display = 'none';
+      walletConnectScreen.classList.add('show');
+    });
+    document.getElementById('connectRoninBtn').addEventListener('click', connectRoninWallet);
+    document.getElementById('viewAsGuestBtn').addEventListener('click', viewAsGuest);
+    document.getElementById('setUsernameBtn').addEventListener('click', setUsername);
+    logoutBtn.addEventListener('click', logout);
+    chatInput.addEventListener('keypress', (e) => { if (e.key === 'Enter' && !isGuest && currentUser) sendMessage(); });
+    usernameInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') setUsername(); });
+  </script>
 </body>
 </html>
