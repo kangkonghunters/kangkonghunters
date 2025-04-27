@@ -18,6 +18,8 @@
     .guest-btn { background: linear-gradient(45deg, #6c757d, #adb5bd); box-shadow: 0 0 10px rgba(108, 117, 125, 0.5); }
     .logout-button { background: linear-gradient(45deg, #dc3545, #ff6666); box-shadow: 0 0 10px rgba(220, 53, 69, 0.5); }
     .chat-input button { padding: 10px 20px; font-size: 0.9rem; }
+    .play-button { padding: 8px 16px; font-size: 0.8rem; margin: 5px auto; display: block; }
+    .disclaimer { font-size: 0.7rem; opacity: 0.7; margin-top: 10px; text-align: center; color: #aaa; max-width: 180px; }
     .logo-section { display: flex; flex-direction: column; align-items: center; justify-content: center; margin-bottom: 20px; }
     img.logo { width: 120px; height: auto; margin-bottom: 15px; }
     .status-wrapper { display: flex; justify-content: center; margin-bottom: 15px; }
@@ -26,16 +28,18 @@
     @keyframes blink-dot { 50% { opacity: 0.3; } }
     .container { display: none; flex-direction: row; height: calc(100vh - 40px); width: 100%; max-width: 1100px; }
     .game-section { flex: 3; padding: 20px; background: #2a2a2a; display: flex; flex-direction: column; align-items: center; border-radius: 8px; }
-    .game-placeholder { width: 100%; height: 100%; background: #3a3a3a; border-radius: 8px; display: flex; justify-content: center; align-items: center; padding: 20px; }
-    .bottom-content { display: flex; flex-direction: row; justify-content: center; gap: 40px; width: 100%; max-width: 1100px; padding: 0 15px; }
+    .game-placeholder { width: 100%; height: 100%; background: #3a3a3a; border-radius: 8px; display: flex; flex-direction: column; align-items: center; padding: 20px; position: relative; overflow: hidden; }
+    .play-area { width: 100%; max-width: 200px; margin: 0 auto 20px; text-align: center; position: relative; }
+    .animation-container { width: 100px; height: 100px; margin: 0 auto 10px; position: relative; }
+    .bottom-content { display: flex; flex-direction: row; justify-content: center; gap: 40px; width: 100%; padding: 0 15px; }
     .section { display: flex; flex-direction: column; align-items: center; color: #fff; text-align: center; width: 100%; max-width: 300px; transition: transform 0.2s; }
     .section:hover { transform: scale(1.05); }
-    .image-container { width: 100%; height: 150px; display: flex; justify-content: center; align-items: center; margin-bottom: 10px; border: 2px solid transparent; border-radius: 8px; transition: border 0.2s, box-shadow 0.2s; }
-    .section:hover .image-container { border: 2px solid transparent; background: linear-gradient(45deg, #ff0066, #ffcc00); background-clip: padding-box; box-shadow: 0 0 20px rgba(255, 0, 102, 0.8); }
-    .section img { width: 100%; max-width: 150px; height: auto; max-height: 100%; }
-    .section.stones img { max-width: 350px; }
-    .section p { font-size: 13px; opacity: 0.8; max-width: 100%; padding: 0 10px; }
-    .section .status-wrapper { margin-top: 15px; margin-bottom: 10px; }
+    .image-container { width: 100%; height: 120px; display: flex; justify-content: center; align-items: center; margin-bottom: 10px; border: 2px solid transparent; border-radius: 8px; transition: border 0.2s, box-shadow 0.2s; }
+    .section:hover .image-container { border: 2px solid transparent; background: linear-gradient(45deg, #ff0066, #ffcc00); background-clip: padding-box; box-shadow: 0 0 15px rgba(255, 0, 102, 0.6); }
+    .section img { width: 100%; max-width: 120px; height: auto; max-height: 100%; }
+    .section.stones img { max-width: 250px; }
+    .section p { font-size: 12px; opacity: 0.8; max-width: 100%; padding: 0 10px; }
+    .section .status-wrapper { margin-top: 10px; margin-bottom: 10px; }
     .chat-sidebar { flex: 1; background: #333; padding: 20px; display: flex; flex-direction: column; border-left: 1px solid #444; position: relative; border-radius: 8px; }
     .chat-sidebar h2 { margin-bottom: 10px; font-size: 1.5rem; }
     .wallet-info { margin-bottom: 10px; font-size: 0.9rem; color: #aaa; word-break: break-all; }
@@ -128,6 +132,157 @@
       padding: 8px 16px;
       font-size: 0.9rem;
     }
+    /* Loot Box Styles */
+    #lootBox {
+      width: 50px;
+      height: 50px;
+      background-color: rgb(0, 255, 0);
+      border-radius: 50%;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 0 15px rgba(0, 255, 0, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.5);
+      cursor: pointer;
+      z-index: 100;
+      animation: floatCrystal 3s ease-in-out infinite;
+      transition: background-color 0.5s ease, box-shadow 0.5s ease;
+      pointer-events: auto;
+    }
+    #lootBox:hover {
+      animation: gentleShake 0.2s infinite;
+      background-color: rgb(255, 0, 0);
+      box-shadow: 0 0 15px rgba(255, 0, 0, 1);
+    }
+    #lootBox.flying {
+      top: 20%;
+      transform: translate(-50%, -50%) rotate(10deg);
+      transition: top 0.3s ease-out, transform 0.3s ease-out;
+      animation: gentleShake 0.2s infinite;
+    }
+    #lootBox.shaking-gentle {
+      top: 20%;
+      animation: gentleShake 0.2s infinite, turnRed 10s linear forwards;
+    }
+    #lootBox.shaking-violent {
+      top: 20%;
+      animation: violentShake 0.08s infinite, turnRed 10s linear forwards;
+      background-color: rgb(255, 0, 0);
+      box-shadow: 0 0 20px rgba(255, 50, 50, 1);
+    }
+    #openButton {
+      z-index: 100;
+    }
+    #collectButton {
+      display: none;
+      z-index: 100;
+    }
+    #reward {
+      width: 50px;
+      height: 66px;
+      position: absolute;
+      top: 30%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      opacity: 0;
+      transition: opacity 0.5s;
+      z-index: 100;
+    }
+    #reward.show {
+      opacity: 1;
+    }
+    #message {
+      position: absolute;
+      top: 60%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 10px;
+      font-weight: bold;
+      text-align: center;
+      max-width: 150px;
+      opacity: 0;
+      transition: opacity 0.5s;
+      z-index: 100;
+    }
+    #message.show {
+      opacity: 1;
+    }
+    #flash {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      top: 0;
+      left: 0;
+      background: rgba(255, 255, 255, 0.8);
+      opacity: 0;
+      pointer-events: none;
+      z-index: 99;
+    }
+    #flash.show {
+      animation: flashEffect 0.5s forwards;
+    }
+    .particle {
+      position: absolute;
+      width: 4px;
+      height: 4px;
+      background: #ff4500;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 99;
+    }
+    .dust {
+      position: absolute;
+      width: 6px;
+      height: 6px;
+      background: rgba(200, 200, 200, 0.5);
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 99;
+    }
+    .shatter {
+      position: absolute;
+      width: 2px;
+      height: 2px;
+      background: #808080;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 99;
+    }
+    @keyframes floatCrystal {
+      0% { transform: translate(-50%, -50%) translateY(0); }
+      50% { transform: translate(-50%, -50%) translateY(-5px); }
+      100% { transform: translate(-50%, -50%) translateY(0); }
+    }
+    @keyframes gentleShake {
+      0% { transform: translate(-50%, -50%) translate(0, 0); }
+      25% { transform: translate(-50%, -50%) translate(2px, -2px); }
+      50% { transform: translate(-50%, -50%) translate(-2px, 2px); }
+      75% { transform: translate(-50%, -50%) translate(2px, 2px); }
+      100% { transform: translate(-50%, -50%) translate(-2px, -2px); }
+    }
+    @keyframes violentShake {
+      0% { transform: translate(-50%, -50%) translate(0, 0); }
+      25% { transform: translate(-50%, -50%) translate(3px, -3px); }
+      50% { transform: translate(-50%, -50%) translate(-3px, 3px); }
+      75% { transform: translate(-50%, -50%) translate(3px, 3px); }
+      100% { transform: translate(-50%, -50%) translate(-3px, -3px); }
+    }
+    @keyframes turnRed {
+      0% {
+        background-color: rgb(0, 255, 0);
+        box-shadow: 0 0 15px rgba(0, 255, 0, 0.8);
+      }
+      100% {
+        background-color: rgb(255, 0, 0);
+        box-shadow: 0 0 20px rgba(255, 50, 50, 1);
+      }
+    }
+    @keyframes flashEffect {
+      0% { opacity: 0; }
+      50% { opacity: 1; }
+      100% { opacity: 0; }
+    }
     @media (max-width: 768px) {
       body { padding: 15px; }
       img.logo { width: 100px; }
@@ -136,24 +291,46 @@
       .container { flex-direction: column; height: auto; }
       .game-section, .chat-sidebar { width: 100%; margin-bottom: 20px; }
       .chat-sidebar { border-left: none; border-top: 1px solid #444; }
+      .game-placeholder { padding: 15px; }
+      .play-area { max-width: 150px; }
+      .animation-container { width: 80px; height: 80px; }
+      .disclaimer { font-size: 0.6rem; max-width: 140px; }
       .bottom-content { flex-direction: column; gap: 30px; padding: 0 10px; }
       .section { max-width: 100%; }
-      .image-container { height: 120px; }
-      .section img { max-width: 120px; }
-      .section.stones img { max-width: 250px; }
-      .section p { font-size: 12px; padding: 0 15px; }
+      .image-container { height: 100px; }
+      .section img { max-width: 100px; }
+      .section.stones img { max-width: 200px; }
+      .section p { font-size: 11px; padding: 0 15px; }
       button { padding: 10px 20px; font-size: 0.9rem; }
+      .play-button { padding: 6px 12px; font-size: 0.7rem; }
       .chathead { width: 90%; height: 300px; }
+      #lootBox { width: 40px; height: 40px; }
+      #reward { width: 40px; height: 53px; top: 35%; }
+      #message { font-size: 8px; max-width: 120px; top: 65%; }
+      .particle { width: 3px; height: 3px; }
+      .dust { width: 5px; height: 5px; }
+      .shatter { width: 1.5px; height: 1.5px; }
     }
     @media (min-width: 1200px) {
       img.logo { width: 150px; }
       .status { font-size: 20px; }
       .red-dot { width: 10px; height: 10px; }
+      .game-placeholder { padding: 30px; }
+      .play-area { max-width: 250px; }
+      .animation-container { width: 120px; height: 120px; }
+      .disclaimer { font-size: 0.8rem; max-width: 220px; }
       .bottom-content { gap: 70px; }
-      .image-container { height: 200px; }
+      .image-container { height: 150px; }
       .section img { max-width: 150px; }
-      .section.stones img { max-width: 350px; }
-      .section p { font-size: 14px; max-width: 200px; padding: 0; }
+      .section.stones img { max-width: 300px; }
+      .section p { font-size: 13px; max-width: 200px; padding: 0; }
+      .play-button { padding: 10px 20px; font-size: 0.9rem; }
+      #lootBox { width: 60px; height: 60px; }
+      #reward { width: 60px; height: 80px; top: 30%; }
+      #message { font-size: 12px; max-width: 180px; top: 60%; }
+      .particle { width: 5px; height: 5px; }
+      .dust { width: 8px; height: 8px; }
+      .shatter { width: 2.5px; height: 2.5px; }
     }
   </style>
 </head>
@@ -188,7 +365,19 @@
   <div class="container" id="mainContainer">
     <div class="game-section">
       <div class="game-placeholder">
+        <div class="play-area">
+          <div class="animation-container">
+            <div id="lootBox"></div>
+            <img id="reward" src="" alt="Reward Item">
+            <div id="message"></div>
+            <div id="flash"></div>
+          </div>
+          <button id="openButton" class="play-button">OPEN HIGH TIER LOOT</button>
+          <button id="collectButton" class="play-button">Collect Rewards</button>
+          <p class="disclaimer">Test mode only! Rewards aren't real yet — real loot drops when we go live!</p>
+        </div>
         <div class="bottom-content">
+          <!-- Loot Box Section -->
           <div class="section">
             <div class="image-container">
               <img src="./lootbox.png" alt="Loot Box" />
@@ -202,6 +391,7 @@
             <p>Unlock to discover items and boosts!</p>
             <p>(ERC-1155, Unlimited Supply)</p>
           </div>
+          <!-- Stones Section -->
           <div class="section stones">
             <div class="image-container">
               <img src="./stones.png" alt="Stones" />
@@ -215,6 +405,7 @@
             <p>Collect Civilian's, Looter's, and Hunter's Stones for power-ups.</p>
             <p>(ERC-1155, Limited Supply)</p>
           </div>
+          <!-- NFT Section -->
           <div class="section">
             <div class="image-container">
               <img src="./nft.png" alt="NFT" />
@@ -741,6 +932,133 @@
       Object.values(chatheads).forEach(chathead => chathead.element.remove());
       Object.keys(chatheads).forEach(key => delete chatheads[key]);
       reconnectAttempts = 0;
+    }
+
+    // Loot Box Script
+    const lootBox = document.getElementById('lootBox');
+    const openButton = document.getElementById('openButton');
+    const collectButton = document.getElementById('collectButton');
+    const reward = document.getElementById('reward');
+    const message = document.getElementById('message');
+    const flash = document.getElementById('flash');
+    const playArea = document.querySelector('.play-area');
+    const animationContainer = playArea.querySelector('.animation-container');
+
+    const items = [
+      { name: 'Civilian's Stone', src: './civilian_stone.png' },
+      { name: 'Looter's Stone', src: './looter_stone.png' },
+      { name: 'Hunter's Stone', src: './Hunter_stone.png' }
+    ];
+
+    openButton.addEventListener('click', () => {
+      openButton.disabled = true;
+      lootBox.classList.add('flying');
+      setTimeout(() => {
+        lootBox.classList.remove('flying');
+        lootBox.classList.add('shaking-gentle');
+        setTimeout(() => {
+          lootBox.classList.remove('shaking-gentle');
+          lootBox.classList.add('shaking-violent');
+          setTimeout(() => {
+            const containerRect = animationContainer.getBoundingClientRect();
+            const containerHeight = containerRect.height;
+            createShatterAndDust(containerHeight * 0.2);
+            lootBox.style.display = 'none';
+            setTimeout(() => {
+              const explodeY = containerHeight * 0.2;
+              createParticles(explodeY);
+              flash.classList.add('show');
+              const randomItem = items[Math.floor(Math.random() * items.length)];
+              reward.src = randomItem.src;
+              reward.alt = randomItem.name;
+              message.textContent = `CONGRATULATIONS! YOU WON ${randomItem.name.toUpperCase()}!`;
+              setTimeout(() => {
+                reward.classList.add('show');
+                message.classList.add('show');
+                setTimeout(() => {
+                  collectButton.style.display = 'block';
+                }, 500);
+                openButton.style.display = 'none';
+              }, 500);
+            }, 0);
+          }, 5000);
+        }, 5000);
+      }, 300);
+    });
+
+    collectButton.addEventListener('click', () => {
+      reward.classList.remove('show');
+      message.classList.remove('show');
+      collectButton.style.display = 'none';
+      flash.classList.remove('show');
+      lootBox.style.display = 'block';
+      lootBox.classList.remove('shaking-violent');
+      lootBox.style.backgroundColor = 'rgb(0, 255, 0)';
+      lootBox.style.boxShadow = '0 0 15px rgba(0, 255, 0, 0.8)';
+      lootBox.style.top = '50%';
+      lootBox.style.transform = 'translate(-50%, -50%)';
+      openButton.style.display = 'block';
+      openButton.disabled = false;
+    });
+
+    function createParticles(explodeY) {
+      for (let i = 0; i < 10; i++) {
+        const particle = document.createElement('div');
+        particle.classList.add('particle');
+        particle.style.left = '50%';
+        particle.style.top = `${explodeY}px`;
+        animationContainer.appendChild(particle);
+        const angle = Math.random() * 360;
+        const distance = 10 + Math.random() * 10;
+        const dx = Math.cos(angle) * distance;
+        const dy = Math.sin(angle) * distance;
+        particle.animate([
+          { transform: 'translate(-50%, -50%)', opacity: 1 },
+          { transform: `translate(${dx - 50}%, ${dy}px)`, opacity: 0 }
+        ], {
+          duration: 500,
+          easing: 'ease-out'
+        }).onfinish = () => particle.remove();
+      }
+    }
+
+    function createShatterAndDust(explodeY) {
+      for (let i = 0; i < 8; i++) {
+        const shatter = document.createElement('div');
+        shatter.classList.add('shatter');
+        shatter.style.left = '50%';
+        shatter.style.top = `${explodeY}px`;
+        animationContainer.appendChild(shatter);
+        const angle = Math.random() * 360;
+        const distance = 5 + Math.random() * 10;
+        const dx = Math.cos(angle) * distance;
+        const dy = Math.sin(angle) * distance;
+        shatter.animate([
+          { transform: 'translate(-50%, -50%)', opacity: 1 },
+          { transform: `translate(${dx - 50}%, ${dy}px)`, opacity: 0 }
+        ], {
+          duration: 300,
+          easing: 'ease-out'
+        }).onfinish = () => shatter.remove();
+      }
+      for (let i = 0; i < 10; i++) {
+        const dust = document.createElement('div');
+        dust.classList.add('dust');
+        dust.style.left = '50%';
+        dust.style.top = `${explodeY}px`;
+        animationContainer.appendChild(dust);
+        const angle = Math.random() * 360;
+        const distance = 7 + Math.random() * 10;
+        const dx = Math.cos(angle) * distance;
+        const dy = Math.sin(angle) * distance;
+        dust.animate([
+          { transform: 'translate(-50%, -50%)', opacity: 0.5 },
+          { transform: `translate(${dx - 50}%, ${dy}px)`, opacity: 0 }
+        ], {
+          duration: 600,
+          easing: 'ease-out'
+        }).onfinish = () => dust.remove();
+      }
     }
 
     enterButton.addEventListener('click', () => {
