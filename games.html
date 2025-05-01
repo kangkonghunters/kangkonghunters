@@ -1,0 +1,1865 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kangkong Hunters Game</title>
+    <style>
+        body {
+            background: #1e1e1e;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            overflow: hidden;
+        }
+        #gameCanvas {
+            border: 1px solid #ccc;
+            background: #2e2e2e;
+            display: block;
+            margin: 20px auto;
+            max-width: 100%;
+        }
+        #stats {
+            font-size: 14px;
+            margin: 10px auto;
+            max-width: 600px;
+        }
+        #resourceBar {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+        }
+        #log {
+            max-width: 600px;
+            margin: 20px auto;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+            font-size: 14px;
+            background: #2e2e2e;
+        }
+        #pauseMenu {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #333;
+            padding: 20px;
+            border: 1px solid #ccc;
+            display: none;
+            text-align: center;
+        }
+        #pauseMenu button {
+            margin: 10px;
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+        .log-alert { font-weight: bold; color: #ff0; }
+        .log-death { color: #f00; }
+        .log-loot { color: #0ff; }
+        .log-heal { color: #0f0; }
+        .log-birth { color: #f0f; }
+    </style>
+</head>
+<body>
+    <h1>KANGKONG HUNTERS GAME TEST</h1>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <div id="resourceBar"></div>
+    <div id="stats"></div>
+    <div id="log"></div>
+    <div id="pauseMenu">
+        <h2>Paused</h2>
+        <button onclick="resumeGame()">Resume</button><br>
+        <button onclick="restartGame()">Restart</button>
+    </div>
+    <script>
+        // Watcher
+        const watcherPositions = [];
+        for (let i = 0; i < 8; i++) {
+            const angle = i * ((2 * Math.PI) / 8);
+            watcherPositions.push({ x: 400 + 150 * Math.cos(angle), y: 300 + 150 * Math.sin(angle), angle });
+        }
+
+        
+        const canvas = document.getElementById('gameCanvas'),
+              ctx = canvas.getContext('2d'),
+              logDiv = document.getElementById('log'),
+              statsDiv = document.getElementById('stats'),
+              resourceBarDiv = document.getElementById('resourceBar'),
+              pauseMenuDiv = document.getElementById('pauseMenu');
+        if (!ctx) {
+            console.error('Canvas context not initialized');
+            logDiv.innerHTML = '<p class="log-alert">Error: Canvas not supported!</p>';
+            throw new Error('Canvas context not initialized');
+        }
+
+        // Game state
+        let gameState = {
+            population: [],
+            monsters: [],
+            animals: [],
+            loot: [],
+            houses: [],
+            trees: [],
+            caves: [],
+            minerals: [],
+            inns: [],
+            taverns: [],
+            libraries: [],
+            barracks: [],
+            blacksmith: null,
+            cannons: [],
+            livestock: 0,
+            metal: 0,
+            weapons: 0,
+            watcherSignals: {
+                enemies: [],
+                animals: [],
+                loot: [],
+                resources: [],
+                wounded: [],
+                repairs: [],
+                weapons: [],
+                backup: []
+            },
+            memoryEnemies: [],
+            potions: 1000,
+            food: 100,
+            wood: 0,
+            stone: 0,
+            waveCount: 0,
+            gameTime: 0,
+            inGameYears: 0,
+            isPaused: false,
+            gameOver: false,
+            lastWaveTime: 0,
+            lastSocialYear: 0,
+            lastAnimalSpawn: 0,
+            lastDayOffRotation: 0,
+            lastResourceRespawn: 0,
+            families: {},
+            history: [],
+            market: { x: 350, y: 350 },
+            worldWidth: 1600,
+            worldHeight: 1200,
+            camera: { x: 400, y: 300, zoom: 1 },
+            castle: null,
+            tower: null,
+            gatheredResources: [],
+            damageNumbers: [],
+            morale: 100,
+            logBuffer: [],
+            lastLogFlush: 0,
+            aiTickAccumulator: 0,
+            aiTickInterval: 0.2,
+            rotationSchedule: []
+        };
+
+        // camera
+        function isInView(x, y, radius = 0) {
+            const cam = gameState.camera,
+                  viewWidth = canvas.width / cam.zoom,
+                  viewHeight = canvas.height / cam.zoom;
+            return x + radius >= cam.x - viewWidth / 2 &&
+                   x - radius <= cam.x + viewWidth / 2 &&
+                   y + radius >= cam.y - viewHeight / 2 &&
+                   y - radius <= cam.y + viewHeight / 2;
+        }
+
+        // unit
+        class Unit {
+            constructor(id, type, role, color, x, y, name, family, house, gender, visionAngle) {
+                this.id = id;
+                this.type = type;
+                this.role = role;
+                this.color = color;
+                this.x = x;
+                this.y = y;
+                this.name = name;
+                this.family = family;
+                this.house = house;
+                this.gender = gender;
+                this.hp = 100;
+                this.stamina = 100;
+                this.morale = 100;
+                this.alive = true;
+                this.damage = role === 'Hunter' ? 50 : role === 'Looter' ? 10 : 5;
+                this.weapon = role === 'Hunter' ? 'stone' : 'none';
+                this.vx = 0;
+                this.vy = 0;
+                this.visionRadius = role === 'Watcher' ? 500 : 50;
+                this.visionAngle = role === 'Watcher' ? visionAngle : 0;
+                this.visionArc = Math.PI;
+                this.state = role === 'Hunter' || role === 'Looter' ? 'patrolling' : role === 'Watcher' ? 'watching' : 'idle';
+                this.targetX = x;
+                this.targetY = y;
+                this.patrolTime = 0;
+                this.alert = false;
+                this.targetMonster = null;
+                this.targetAnimal = null;
+                this.pauseTime = 0;
+                this.isRetreating = false;
+                this.inShelter = null;
+                this.carriedResource = null;
+                this.conditions = { wounded: false, pregnant: false, socializing: false, alert: false, retreating: false, exhausted: false };
+                this.pregnancyTime = 0;
+                this.socialTarget = null;
+                this.dayOff = false;
+                this.dayOffEndTime = 0;
+                this.leisureTime = 0;
+                this.socialTime = 0;
+                this.skillCooldown = 0;
+                this.lastAttackTime = 0;
+                this.rotationSpeed = role === 'Watcher' ? 0.5 : 0;
+                this.lastSignalTime = 0;
+                this.age = 18 + Math.random() * 32;
+                this.crowdOffset = { x: (Math.random() - 0.5) * 5, y: (Math.random() - 0.5) * 5 }; // Anti-stampede offset
+            }
+
+            updateConditions() {
+                this.conditions.wounded = this.hp <= 30;
+                this.conditions.pregnant = this.pregnancyTime > 0;
+                this.conditions.socializing = ['socializing', 'pregnant'].includes(this.state);
+                this.conditions.alert = this.alert;
+                this.conditions.retreating = this.isRetreating;
+                this.conditions.exhausted = this.stamina <= 0;
+            }
+
+            draw() {
+                if (!this.alive || !ctx || this.inShelter || !isInView(this.x, this.y, 10)) return;
+                ctx.save();
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, 5, 0, Math.PI * 2);
+                ctx.fill();
+
+                if (this.state === 'fighting' && gameState.gameTime - this.lastAttackTime < 0.5) {
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(this.x + 5, this.y);
+                    ctx.lineTo(this.x + 15, this.y + 10);
+                    ctx.stroke();
+                }
+
+                ctx.fillStyle = '#f00';
+                ctx.fillRect(this.x - 10, this.y - 15, 20 * (this.hp / 100), 3);
+                ctx.strokeStyle = '#000';
+                ctx.strokeRect(this.x - 10, this.y - 15, 20, 3);
+
+                ctx.fillStyle = '#0f0';
+                ctx.fillRect(this.x - 10, this.y - 10, 20 * (this.stamina / 100), 3);
+                ctx.strokeStyle = '#000';
+                ctx.strokeRect(this.x - 10, this.y - 10, 20, 3);
+
+                ctx.fillStyle = '#ff0';
+                ctx.fillRect(this.x - 10, this.y - 5, 20 * (this.morale / 100), 3);
+                ctx.strokeStyle = '#000';
+                ctx.strokeRect(this.x - 10, this.y - 5, 20, 3);
+
+                ctx.fillStyle = '#fff'; // Changed to white for unit names
+                ctx.font = '8px Arial';
+                const conditions = Object.keys(this.conditions).filter(c => this.conditions[c]).join(', ');
+                const resource = this.carriedResource ? `[${this.carriedResource.type}: ${this.carriedResource.amount}]` : '';
+                ctx.fillText(`${this.name}: ${this.state} ${resource} ${conditions ? `[${conditions}]` : ''}`, this.x + 7, this.y - 20);
+                ctx.restore();
+            }
+
+            update(dt) {
+                this.updateConditions();
+                if (!this.alive || this.inShelter) {
+                    if (this.inShelter && this.hp >= 80) {
+                        this.inShelter.occupants = this.inShelter.occupants.filter(u => u !== this);
+                        this.inShelter = null;
+                        this.isRetreating = false;
+                        this.state = this.dayOff ? 'leisure' : (this.role === 'Hunter' || this.role === 'Looter' ? 'patrolling' : 'idle');
+                        logEvent(`${this.name} healed, leaving shelter to ${this.state}`, 'heal');
+                    }
+                    this.vx = 0;
+                    this.vy = 0;
+                    return;
+                }
+
+                
+                this.morale = Math.max(0, Math.min(100, this.morale - (gameState.morale < 50 ? 0.1 : 0) * dt));
+                const moraleFactor = this.morale / 100;
+
+               
+                switch (this.state) {
+                    case 'idle':
+                        if (this.role === 'Medic' && Math.random() < 0.05) {
+                            this.state = 'socializing';
+                            this.socialTime = 0;
+                            logEvent(`${this.name} started socializing`, 'birth');
+                        }
+                        break;
+
+                    case 'patrolling':
+                        if (this.role === 'Hunter' || this.role === 'Looter') {
+                            this.patrolMap(dt);
+                            if (this.role === 'Hunter') {
+                                const nearbyMonster = gameState.monsters.find(m => m.alive && Math.sqrt((m.x - this.x) ** 2 + (m.y - this.y) ** 2) < this.visionRadius);
+                                if (nearbyMonster) {
+                                    this.state = 'fighting';
+                                    this.targetMonster = nearbyMonster;
+                                    this.targetX = nearbyMonster.x;
+                                    this.targetY = nearbyMonster.y;
+                                    logEvent(`${this.name} engaging ${nearbyMonster.name}`, 'alert');
+                                    break;
+                                }
+                            } else if (this.role === 'Looter') {
+                                const nearbyLoot = gameState.loot.find(l => Math.sqrt((l.x - this.x) ** 2 + (l.y - this.x) ** 2) < this.visionRadius);
+                                if (nearbyLoot) {
+                                    this.state = 'looting';
+                                    this.targetX = nearbyLoot.x;
+                                    this.targetY = nearbyLoot.y;
+                                    logEvent(`${this.name} heading to loot at (${Math.round(nearbyLoot.x)},${Math.round(nearbyLoot.y)})`, 'loot');
+                                    break;
+                                }
+                                const nearbyMonster = gameState.monsters.find(m => m.alive && Math.sqrt((m.x - this.x) ** 2 + (m.y - this.y) ** 2) < 100);
+                                if (nearbyMonster) {
+                                    this.state = 'fleeing';
+                                    const shelter = this.findNearestShelter();
+                                    this.targetX = shelter.x + this.crowdOffset.x;
+                                    this.targetY = shelter.y + this.crowdOffset.y;
+                                    logEvent(`${this.name} fleeing from ${nearbyMonster.name} to shelter`, 'alert');
+                                    break;
+                                }
+                            }
+                            if (!this.carriedResource) {
+                                const nearbyAnimal = gameState.animals.find(a => a.alive && Math.sqrt((a.x - this.x) ** 2 + (a.y - this.y) ** 2) < this.visionRadius);
+                                if (nearbyAnimal) {
+                                    this.state = 'hunting';
+                                    this.targetAnimal = nearbyAnimal;
+                                    this.targetX = nearbyAnimal.x;
+                                    this.targetY = nearbyAnimal.y;
+                                    logEvent(`${this.name} hunting animal at (${Math.round(nearbyAnimal.x)},${Math.round(nearbyAnimal.y)})`, 'birth');
+                                    break;
+                                }
+                            }
+                        }
+                        break;
+
+                    case 'fighting':
+                        if (this.targetMonster && this.targetMonster.alive) {
+                            const dist = Math.sqrt((this.targetMonster.x - this.x) ** 2 + (this.targetMonster.y - this.y) ** 2);
+                            if (dist < 20) {
+                                let damage = this.damage * moraleFactor;
+                                if (this.weapon === 'metal') damage = 100 * moraleFactor;
+                                this.targetMonster.hp -= damage * dt;
+                                this.lastAttackTime = gameState.gameTime;
+                                gameState.damageNumbers.push(DamageNumber.get(this.targetMonster.x, this.targetMonster.y, Math.round(damage * dt), 'damage'));
+                                if (this.targetMonster.hp <= 0) {
+                                    this.targetMonster.alive = false;
+                                    this.morale = Math.min(100, this.morale + 20);
+                                    logEvent(`${this.name} killed ${this.targetMonster.name}!`, 'birth');
+                                    if (Math.random() < 0.5) {
+                                        gameState.loot.push(new Loot(this.targetMonster.x, this.targetMonster.y, 'Regular', 'Potion'));
+                                    } else if (Math.random() < 0.05) {
+                                        gameState.loot.push(new Loot(this.targetMonster.x, this.targetMonster.y, 'HighTier', 'Diamond'));
+                                    }
+                                    this.targetMonster = null;
+                                    this.state = this.dayOff ? 'leisure' : 'patrolling';
+                                    logEvent(`${this.name} returning to ${this.state}`, 'birth');
+                                }
+                            } else {
+                                this.moveToward(this.targetMonster.x, this.targetMonster.y);
+                            }
+                        } else {
+                            this.targetMonster = null;
+                            this.state = this.dayOff ? 'leisure' : 'patrolling';
+                            logEvent(`${this.name} no target, returning to ${this.state}`, 'birth');
+                        }
+                        break;
+
+                    case 'hunting':
+                        if (this.targetAnimal && this.targetAnimal.alive) {
+                            const dist = Math.sqrt((this.targetAnimal.x - this.x) ** 2 + (this.targetAnimal.y - this.y) ** 2);
+                            if (dist < 20) {
+                                this.targetAnimal.hp -= this.damage * dt * moraleFactor;
+                                this.lastAttackTime = gameState.gameTime;
+                                gameState.damageNumbers.push(DamageNumber.get(this.targetAnimal.x, this.targetAnimal.y, Math.round(this.damage * dt), 'damage'));
+                                if (this.targetAnimal.hp <= 0) {
+                                    this.targetAnimal.alive = false;
+                                    this.carriedResource = { type: 'food', amount: 5 };
+                                    this.morale = Math.min(100, this.morale + 10);
+                                    logEvent(`${this.name} hunted animal, carrying 5 food`, 'birth');
+                                    this.targetAnimal = null;
+                                    this.state = 'returning';
+                                    this.targetX = gameState.market.x;
+                                    this.targetY = gameState.market.y;
+                                }
+                            } else {
+                                this.moveToward(this.targetAnimal.x, this.targetAnimal.y);
+                            }
+                        } else {
+                            this.targetAnimal = null;
+                            this.state = this.dayOff ? 'leisure' : 'patrolling';
+                            logEvent(`${this.name} no animal, returning to ${this.state}`, 'birth');
+                        }
+                        break;
+
+                    case 'looting':
+                        const loot = gameState.loot.find(l => Math.sqrt((l.x - this.x) ** 2 + (l.y - this.y) ** 2) < 10);
+                        if (loot) {
+                            this.carriedResource = { type: loot.item.toLowerCase(), amount: loot.item === 'Potion' ? 10 : 1 };
+                            gameState.loot = gameState.loot.filter(l => l !== loot);
+                            this.state = 'returning';
+                            this.targetX = gameState.market.x;
+                            this.targetY = gameState.market.y;
+                            logEvent(`${this.name} collected ${loot.item}`, 'loot');
+                        } else {
+                            this.moveToward(this.targetX, this.targetY);
+                        }
+                        break;
+
+                    case 'returning':
+                        if (this.carriedResource && Math.sqrt((this.x - gameState.market.x) ** 2 + (this.y - gameState.market.y) ** 2) < 20) {
+                            if (this.carriedResource.type === 'potion') {
+                                gameState.potions += this.carriedResource.amount;
+                                logEvent(`${this.name} deposited ${this.carriedResource.amount} potions`, 'loot');
+                            } else if (this.carriedResource.type === 'diamond') {
+                                gameState.metal += 20;
+                                gameState.stone += 20;
+                                logEvent(`${this.name} deposited Diamond! +20 metal, +20 stone`, 'loot');
+                            } else {
+                                gameState[this.carriedResource.type] += this.carriedResource.amount;
+                                logEvent(`${this.name} deposited ${this.carriedResource.amount} ${this.carriedResource.type}`, 'birth');
+                            }
+                            this.carriedResource = null;
+                            this.state = this.dayOff ? 'leisure' : (this.role === 'Hunter' || this.role === 'Looter' ? 'patrolling' : 'idle');
+                            logEvent(`${this.name} returning to ${this.state}`, 'birth');
+                        } else {
+                            this.moveToward(gameState.market.x, gameState.market.y);
+                        }
+                        break;
+
+                    case 'retreating':
+                        const shelter = [gameState.houses, gameState.caves, gameState.inns, gameState.taverns].flat().find(s => Math.sqrt((s.x - this.targetX) ** 2 + (s.y - this.targetY) ** 2) < 10);
+                        if (shelter && Math.sqrt((this.x - this.targetX) ** 2 + (this.y - this.targetY) ** 2) < 10 && shelter.occupants.length < shelter.capacity) {
+                            this.inShelter = shelter;
+                            shelter.occupants.push(this);
+                            this.vx = 0;
+                            this.vy = 0;
+                            logEvent(`${this.name} entered ${shelter.type} at (${Math.round(shelter.x)},${Math.round(shelter.y)}) for healing`, 'alert');
+                        } else {
+                            this.moveToward(this.targetX + this.crowdOffset.x, this.targetY + this.crowdOffset.y);
+                        }
+                        break;
+
+                    case 'fleeing':
+                        const fleeShelter = [gameState.houses, gameState.caves, gameState.inns, gameState.taverns].flat().find(s => Math.sqrt((s.x - this.targetX) ** 2 + (s.y - this.targetY) ** 2) < 10);
+                        if (fleeShelter && Math.sqrt((this.x - this.targetX) ** 2 + (this.y - this.targetY) ** 2) < 10 && fleeShelter.occupants.length < fleeShelter.capacity) {
+                            this.inShelter = fleeShelter;
+                            fleeShelter.occupants.push(this);
+                            this.vx = 0;
+                            this.vy = 0;
+                            logEvent(`${this.name} fled to ${fleeShelter.type} at (${Math.round(fleeShelter.x)},${Math.round(fleeShelter.y)})`, 'alert');
+                        } else {
+                            this.moveToward(this.targetX + this.crowdOffset.x, this.targetY + this.crowdOffset.y);
+                        }
+                        break;
+
+                    case 'resting':
+                        if (gameState.food >= 1 && this.stamina < 100) {
+                            gameState.food -= 1;
+                            this.stamina = Math.min(100, this.stamina + 20);
+                            this.morale = Math.min(100, this.morale + 10);
+                            logEvent(`${this.name} consumed 1 food, restored 20 stamina`, 'heal');
+                        }
+                        if (this.stamina >= 100) {
+                            this.state = this.dayOff ? 'leisure' : (this.role === 'Hunter' || this.role === 'Looter' ? 'patrolling' : 'idle');
+                            logEvent(`${this.name} fully rested, returning to ${this.state}`, 'heal');
+                        }
+                        break;
+
+                    case 'leisure':
+                        this.leisureTime = (this.leisureTime || 0) + dt;
+                        if (this.leisureTime >= 15 || Math.sqrt((this.targetX - this.x) ** 2 + (this.targetY - this.y) ** 2) < 10) {
+                            const establishments = [
+                                ...gameState.houses.filter(h => h.hp > 0).map(h => ({ type: 'house', x: h.x, y: h.y })),
+                                ...gameState.inns.map(i => ({ type: 'inn', x: i.x, y: i.y })),
+                                ...gameState.taverns.map(t => ({ type: 'tavern', x: t.x, y: t.y })),
+                                ...gameState.libraries.map(l => ({ type: 'library', x: l.x, y: l.y })),
+                                ...gameState.barracks.map(b => ({ type: 'barracks', x: b.x, y: b.y })),
+                                { type: 'market', x: gameState.market.x, y: gameState.market.y },
+                                { type: 'blacksmith', x: gameState.blacksmith.x, y: gameState.blacksmith.y },
+                                ...gameState.caves.map(c => ({ type: 'cave', x: c.x, y: c.y }))
+                            ];
+                            const target = establishments[Math.floor(Math.random() * establishments.length)];
+                            this.targetX = target.x + this.crowdOffset.x;
+                            this.targetY = target.y + this.crowdOffset.y;
+                            this.leisureTime = 0;
+                            this.state = Math.random() < 0.5 ? 'socializing' : 'leisure';
+                            logEvent(`${this.name} visiting ${target.type}, state: ${this.state}`, 'birth');
+                        } else {
+                            this.moveToward(this.targetX, this.targetY);
+                        }
+                        break;
+
+                    case 'socializing':
+                        this.socialTime = (this.socialTime || 0) + dt;
+                        if (this.socialTime >= 10) {
+                            this.state = 'leisure';
+                            this.socialTime = 0;
+                            logEvent(`${this.name} finished socializing, returning to leisure`, 'birth');
+                        } else {
+                            this.socialize();
+                        }
+                        break;
+
+                    case 'watching':
+                        if (this.role === 'Watcher') {
+                            this.visionAngle += this.rotationSpeed * dt;
+                            this.visionAngle %= 2 * Math.PI;
+                            const nearbyMonsters = gameState.grid.getNearby(this.x, this.y, this.visionRadius).filter(
+                                item => item instanceof Monster && item.alive && isInVisionArc(this, item.x, item.y)
+                            );
+                            nearbyMonsters.forEach(m => {
+                                if (!m.detected && gameState.gameTime - this.lastSignalTime > 5) {
+                                    m.detected = true;
+                                    gameState.watcherSignals.enemies.push({
+                                        x: m.x,
+                                        y: m.y,
+                                        density: 1,
+                                        assignedCount: 0,
+                                        expires: gameState.gameTime + 60,
+                                        obj: m,
+                                        name: m.name,
+                                        lastSeen: gameState.gameTime
+                                    });
+                                    this.lastSignalTime = gameState.gameTime;
+                                    logEvent(`${this.name} detected ${m.name} at (${Math.round(m.x)},${Math.round(m.y)})`, 'alert');
+                                }
+                            });
+                        }
+                        break;
+                }
+
+                // stamina
+                const staminaDrain = ['patrolling', 'looting', 'fleeing', 'returning', 'hunting', 'leisure'].includes(this.state) ? 0.1 :
+                                    this.state === 'fighting' ? 0.5 :
+                                    ['socializing'].includes(this.state) ? 0.2 : 0;
+                this.stamina = Math.max(0, this.stamina - staminaDrain * dt);
+                if (this.stamina <= 0 && !this.conditions.exhausted) {
+                    this.state = 'resting';
+                    this.targetX = gameState.market.x;
+                    this.targetY = gameState.market.y;
+                    logEvent(`${this.name} exhausted, resting at market`, 'alert');
+                    return;
+                }
+
+                // low hp logic
+                if (this.hp <= 30 && !this.isRetreating && this.role !== 'Watcher' && !this.dayOff && !['retreating', 'resting'].includes(this.state)) {
+                    this.isRetreating = true;
+                    const shelter = this.findNearestShelter();
+                    this.targetX = shelter.x + this.crowdOffset.x;
+                    this.targetY = shelter.y + this.crowdOffset.y;
+                    logEvent(`${this.name} retreating to ${shelter.type} at (${Math.round(shelter.x)},${Math.round(shelter.y)})`, 'alert');
+                    this.state = 'retreating';
+                }
+                if (this.hp > 80 && this.isRetreating && !this.inShelter) {
+                    this.isRetreating = false;
+                    this.state = this.dayOff ? 'leisure' : (this.role === 'Hunter' || this.role === 'Looter' ? 'patrolling' : 'idle');
+                    logEvent(`${this.name} recovered, returning to ${this.state}`, 'heal');
+                }
+
+                // movement
+                if (['patrolling', 'hunting', 'looting', 'returning', 'retreating', 'fleeing', 'leisure'].includes(this.state)) {
+                    let newX = this.x + this.vx * dt, newY = this.y + this.vy * dt;
+                    const nearby = gameState.grid.getNearby(this.x, this.y, 20);
+                    let separationX = 0, separationY = 0, separationCount = 0;
+                    for (const item of nearby) {
+                        if (item === this || !item.alive) continue;
+                        const dx = newX - item.x, dy = newY - item.y, dist = Math.sqrt(dx * dx + dy * dy);
+                        const minDist = (item instanceof Unit || item instanceof Monster || item instanceof Animal || item instanceof Tree || item instanceof Cave || item instanceof Mineral) ? 10 : 5;
+                        if (dist < minDist) {
+                            const pushFactor = (minDist - dist) / dist * 0.5;
+                            newX += dx * pushFactor;
+                            newY += dy * pushFactor;
+                            if (item instanceof Unit) {
+                                separationX += dx / (dist + 0.1);
+                                separationY += dy / (dist + 0.1);
+                                separationCount++;
+                            }
+                        }
+                    }
+                    if (separationCount > 0) {
+                        separationX /= separationCount;
+                        separationY /= separationCount;
+                        const separationMag = Math.sqrt(separationX * separationX + separationY * separationY);
+                        if (separationMag > 0) {
+                            separationX = (separationX / separationMag) * 10 * dt;
+                            separationY = (separationY / separationMag) * 10 * dt;
+                            newX += separationX;
+                            newY += separationY;
+                        }
+                    }
+                    this.x = Math.max(5, Math.min(gameState.worldWidth - 5, newX));
+                    this.y = Math.max(5, Math.min(gameState.worldHeight - 5, newY));
+                }
+            }
+
+            findNearestShelter() {
+                const shelters = [...gameState.houses.filter(h => h.hp > 0), ...gameState.caves, ...gameState.inns, ...gameState.taverns];
+                return shelters.reduce((closest, shelter) => {
+                    const dist = Math.sqrt((shelter.x - this.x) ** 2 + (shelter.y - this.y) ** 2);
+                    return dist < closest.dist && shelter.occupants.length < shelter.capacity ? { shelter, dist } : closest;
+                }, { shelter: gameState.houses[0] || gameState.caves[0], dist: Infinity }).shelter;
+            }
+
+            moveToward(targetX, targetY) {
+                if (targetX == null || targetY == null || isNaN(targetX) || isNaN(targetY) || targetX < 0 || targetX > gameState.worldWidth || targetY < 0 || targetY > gameState.worldHeight) {
+                    logEvent(`${this.name} invalid target (${targetX},${targetY}), resetting to patrol`, 'alert');
+                    this.state = this.dayOff ? 'leisure' : (this.role === 'Hunter' || this.role === 'Looter' ? 'patrolling' : 'idle');
+                    this.patrolMap(0);
+                    return;
+                }
+                const dx = targetX - this.x, dy = targetY - this.y, dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist > 5) {
+                    const speed = this.dayOff ? 25 : this.conditions.exhausted ? 25 : this.alert ? 75 : 50;
+                    this.vx = (dx / dist) * speed;
+                    this.vy = (dy / dist) * speed;
+                } else {
+                    this.vx = 0;
+                    this.vy = 0;
+                    if (['gathering', 'looting', 'healing', 'fighting', 'hunting', 'repairing', 'scouting', 'reinforcing', 'socializing'].includes(this.state)) {
+                        this.state = 'returning';
+                        this.targetX = gameState.market.x;
+                        this.targetY = gameState.market.y;
+                    } else if (this.state === 'returning' || this.state === 'retreating' || this.state === 'fleeing' || this.state === 'resting') {
+                        this.state = this.dayOff ? 'leisure' : (this.role === 'Hunter' || this.role === 'Looter' ? 'patrolling' : 'idle');
+                        this.patrolMap(0);
+                    }
+                }
+            }
+
+            returnToCity() {
+                this.targetX = gameState.castle.x;
+                this.targetY = gameState.castle.y;
+            }
+
+            patrolMap(dt) {
+                this.patrolTime -= dt;
+                if (this.patrolTime <= 0 || Math.sqrt((this.targetX - this.x) ** 2 + (this.targetY - this.y) ** 2) < 10) {
+                    const gridSizeX = gameState.worldWidth / 4;
+                    const gridSizeY = gameState.worldHeight / 4;
+                    const gridX = Math.floor(Math.random() * 4);
+                    const gridY = Math.floor(Math.random() * 4);
+                    this.targetX = 50 + gridX * gridSizeX + Math.random() * (gridSizeX - 100);
+                    this.targetY = 50 + gridY * gridSizeY + Math.random() * (gridSizeY - 100);
+                    this.targetX = Math.max(5, Math.min(gameState.worldWidth - 5, this.targetX));
+                    this.targetY = Math.max(5, Math.min(gameState.worldHeight - 5, this.targetY));
+                    this.patrolTime = 30 + Math.random() * 30;
+                    logEvent(`${this.name} patrolling to (${Math.round(this.targetX)},${Math.round(this.targetY)})`, 'birth');
+                }
+                this.moveToward(this.targetX, this.targetY);
+            }
+
+            socialize() {
+                const nearby = gameState.population.filter(u => u.alive && u.id !== this.id && Math.sqrt((u.x - this.x) ** 2 + (u.y - this.y) ** 2) < 100);
+                if (nearby.length > 0) {
+                    const other = nearby[Math.floor(Math.random() * nearby.length)];
+                    this.moveToward(other.x, other.y);
+                } else {
+                    this.moveToward(gameState.market.x, gameState.market.y);
+                }
+            }
+        }
+
+        // mobs
+        class Monster {
+            constructor(id, x, y, strength = 1) {
+                this.id = id;
+                this.hp = 100 * strength;
+                this.maxHp = this.hp;
+                this.x = x;
+                this.y = y;
+                this.alive = true;
+                this.vx = 0;
+                this.vy = 0;
+                this.detected = false;
+                this.name = generateMonsterName();
+                this.lastAttackTime = 0;
+                this.strength = strength;
+            }
+
+            draw() {
+                if (!this.alive || !ctx || !isInView(this.x, this.y, 10)) return;
+                ctx.save();
+                ctx.fillStyle = this.detected ? '#ff0' : '#f00';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, 8, 0, Math.PI * 2);
+                ctx.fill();
+
+                if (gameState.gameTime - this.lastAttackTime < 0.5) {
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(this.x + 8, this.y);
+                    ctx.lineTo(this.x + 18, this.y + 10);
+                    ctx.stroke();
+                }
+
+                ctx.fillStyle = '#f00';
+                ctx.fillRect(this.x - 10, this.y - 15, 20 * (this.hp / this.maxHp), 3);
+                ctx.strokeStyle = '#000';
+                ctx.strokeRect(this.x - 10, this.y - 15, 20, 3);
+
+                ctx.fillStyle = '#fff'; // Changed to white for monster names
+                ctx.font = '8px Arial';
+                ctx.fillText(`${this.name}: ${Math.round(this.hp)} HP`, this.x + 10, this.y - 20);
+                ctx.restore();
+            }
+
+            update(dt) {
+                if (!this.alive || !isInView(this.x, this.y, 10)) return;
+                let target = null, minDist = Infinity;
+                const nearbyUnits = gameState.grid.getNearby(this.x, this.y, 50).filter(
+                    item => item instanceof Unit && item.alive && !item.inShelter
+                );
+                const nearbyAnimals = gameState.animals.filter(a => a.alive && Math.sqrt((a.x - this.x) ** 2 + (a.y - this.y) ** 2) < 50);
+
+                for (const unit of nearbyUnits) {
+                    const dist = Math.sqrt((unit.x - this.x) ** 2 + (unit.y - this.y) ** 2);
+                    const priority = unit.role === 'Hunter' ? 2 : 1;
+                    if (dist < minDist * priority) {
+                        target = unit;
+                        minDist = dist / priority;
+                    }
+                }
+                for (const animal of nearbyAnimals) {
+                    const dist = Math.sqrt((animal.x - this.x) ** 2 + (animal.y - this.y) ** 2);
+                    if (dist < minDist) {
+                        target = animal;
+                        minDist = dist;
+                    }
+                }
+                if (!target) {
+                    target = gameState.castle;
+                    const buildings = [...gameState.houses.filter(h => h.hp > 0), gameState.tower, ...gameState.inns, ...gameState.taverns, ...gameState.libraries, ...gameState.barracks];
+                    buildings.forEach(b => {
+                        const dist = Math.sqrt((b.x - this.x) ** 2 + (b.y - this.y) ** 2);
+                        if (dist < minDist && b.hp > 0) {
+                            minDist = dist;
+                            target = b;
+                        }
+                    });
+                }
+
+                const dx = target.x - this.x, dy = target.y - this.y, dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist > 5) {
+                    this.vx = (dx / dist) * 50 * this.strength;
+                    this.vy = (dy / dist) * 50 * this.strength;
+                } else {
+                    this.vx = 0;
+                    this.vy = 0;
+                }
+
+                let newX = this.x + this.vx * dt, newY = this.y + this.vy * dt;
+                const nearby = gameState.grid.getNearby(this.x, this.y, 20);
+                for (const item of nearby) {
+                    if (item === this || !item.alive) continue;
+                    const dx = newX - item.x, dy = newY - item.y, dist = Math.sqrt(dx * dx + dy * dy);
+                    const minDist = (item instanceof Unit || item instanceof Monster || item instanceof Animal || item instanceof Tree || item instanceof Cave || item instanceof Mineral) ? 10 : 5;
+                    if (dist < minDist) {
+                        const pushFactor = (minDist - dist) / dist * 0.5;
+                        newX += dx * pushFactor;
+                        newY += dy * pushFactor;
+                    }
+                }
+
+                this.x = Math.max(8, Math.min(gameState.worldWidth - 8, newX));
+                this.y = Math.max(8, Math.min(gameState.worldHeight - 8, newY));
+
+                if (dist < 20) {
+                    this.lastAttackTime = gameState.gameTime;
+                    if (target instanceof Unit) {
+                        const damage = (target.role === 'Hunter' ? 20 : 100) * this.strength;
+                        target.hp -= damage * dt;
+                        target.morale = Math.max(0, target.morale - 10 * dt);
+                        gameState.damageNumbers.push(DamageNumber.get(target.x, target.y, Math.round(damage * dt), 'damage'));
+                        if (target.hp <= 0) {
+                            target.alive = false;
+                            gameState.morale = Math.max(0, gameState.morale - 10);
+                            logEvent(`${target.name} killed by ${this.name}!`, 'death');
+                            if (target.role === 'Watcher') {
+                                replaceWatcher();
+                            }
+                        }
+                    } else if (target instanceof Animal) {
+                        target.hp -= 20 * dt * this.strength;
+                        gameState.damageNumbers.push(DamageNumber.get(target.x, target.y, Math.round(20 * dt), 'damage'));
+                        if (target.hp <= 0) {
+                            target.alive = false;
+                            logEvent(`Animal killed by ${this.name}!`, 'death');
+                        }
+                    } else if (target.hp) {
+                        target.hp -= 10 * dt * this.strength;
+                        gameState.damageNumbers.push(DamageNumber.get(target.x, target.y, Math.round(10 * dt), 'damage'));
+                        if (target === gameState.castle) {
+                            gameState.castle.hp = target.hp;
+                            gameState.morale = Math.max(0, gameState.morale - 5);
+                            logEvent(`${this.name} attacked castle! HP: ${Math.round(target.hp)}`, 'alert');
+                        } else if (target.hp <= 0) {
+                            gameState.morale = Math.max(0, gameState.morale - 5);
+                            logEvent(`${this.name} destroyed ${target.type || 'house'} at (${Math.round(target.x)},${Math.round(target.y)})`, 'alert');
+                        }
+                    }
+                }
+            }
+        }
+
+        //animal
+        class Animal {
+            constructor(id, x, y) {
+                this.id = id;
+                this.hp = 50;
+                this.x = x;
+                this.y = y;
+                this.alive = true;
+                this.vx = (Math.random() - 0.5) * 20;
+                this.vy = (Math.random() - 0.5) * 20;
+            }
+
+            draw() {
+                if (!this.alive || !ctx || !isInView(this.x, this.y, 10)) return;
+                ctx.save();
+                ctx.fillStyle = '#00f';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, 5, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#f00';
+                ctx.fillRect(this.x - 10, this.y - 15, 20 * (this.hp / 50), 3);
+                ctx.strokeStyle = '#000';
+                ctx.strokeRect(this.x - 10, this.y - 15, 20, 3);
+                ctx.restore();
+            }
+
+            update(dt) {
+                if (!this.alive || !isInView(this.x, this.y, 10)) return;
+                let newX = this.x + this.vx * dt, newY = this.y + this.vy * dt;
+                const nearby = gameState.grid.getNearby(this.x, this.y, 20);
+                for (const item of nearby) {
+                    if (item === this || !item.alive) continue;
+                    const dx = newX - item.x, dy = newY - item.y, dist = Math.sqrt(dx * dx + dy * dy);
+                    const minDist = (item instanceof Unit || item instanceof Monster || item instanceof Animal || item instanceof Tree || item instanceof Cave || item instanceof Mineral) ? 10 : 5;
+                    if (dist < minDist) {
+                        const pushFactor = (minDist - dist) / dist * 0.5;
+                        newX += dx * pushFactor;
+                        newY += dy * pushFactor;
+                    }
+                }
+                this.x = Math.max(5, Math.min(gameState.worldWidth - 5, newX));
+                this.y = Math.max(5, Math.min(gameState.worldHeight - 5, newY));
+                if (Math.random() < 0.05) {
+                    this.vx = (Math.random() - 0.5) * 20;
+                    this.vy = (Math.random() - 0.5) * 20;
+                }
+            }
+        }
+
+        // loot xD
+        class Loot {
+            constructor(x, y, type, item) {
+                this.x = x;
+                this.y = y;
+                this.type = type;
+                this.item = item;
+            }
+
+            draw() {
+                if (!ctx || !isInView(this.x, this.y, 5)) return;
+                ctx.save();
+                ctx.fillStyle = this.type === 'HighTier' ? '#0ff' : '#fff';
+                if (this.type === 'HighTier') {
+                    ctx.beginPath();
+                    ctx.moveTo(this.x, this.y - 5);
+                    ctx.lineTo(this.x + 5, this.y);
+                    ctx.lineTo(this.x, this.y + 5);
+                    ctx.lineTo(this.x - 5, this.y);
+                    ctx.closePath();
+                    ctx.fill();
+                } else {
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.restore();
+            }
+        }
+
+        // building
+        class House {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.hp = 500;
+                this.cannon = null;
+                this.occupants = [];
+                this.capacity = 5;
+                this.type = 'house';
+            }
+
+            draw() {
+                if (!ctx || this.hp <= 0 || !isInView(this.x, this.y, 10)) return;
+                ctx.save();
+                ctx.fillStyle = this.hp < 250 ? '#f00' : '#555';
+                ctx.fillRect(this.x, this.y, 10, 10);
+
+                ctx.fillStyle = '#f00';
+                ctx.fillRect(this.x - 10, this.y - 15, 20 * (this.hp / 500), 3);
+                ctx.strokeStyle = '#000';
+                ctx.strokeRect(this.x - 10, this.y - 15, 20, 3);
+
+                if (this.cannon) {
+                    ctx.fillStyle = '#f0f';
+                    ctx.beginPath();
+                    ctx.arc(this.x + 5, this.y + 5, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.fillStyle = '#fff';
+                ctx.font = '8px Arial';
+                ctx.fillText(`House: ${Math.round(this.hp)}`, this.x + 12, this.y + 8);
+                if (this.occupants.length > 0) {
+                    ctx.fillText(`Occupants: ${this.occupants.length}/${this.capacity}`, this.x + 12, this.y + 16);
+                }
+                ctx.restore();
+            }
+        }
+
+        // tree
+        class Tree {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.state = Math.random() < 0.5 ? 'fruit' : 'cuttable';
+                this.gatherTime = 0;
+                this.fruitYield = 5;
+                this.woodYield = 5;
+            }
+
+            draw() {
+                if (!ctx || this.state === 'small' || !isInView(this.x, this.y, 10)) return;
+                ctx.save();
+                ctx.fillStyle = this.state === 'fruit' ? '#0a0' : '#630';
+                ctx.fillRect(this.x, this.y, 10, 10);
+                ctx.restore();
+            }
+        }
+
+        // cave
+        class Cave {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.occupants = [];
+                this.capacity = 10;
+                this.type = 'cave';
+            }
+
+            draw() {
+                if (!ctx || !isInView(this.x, this.y, 15)) return;
+                ctx.save();
+                ctx.fillStyle = '#555';
+                ctx.fillRect(this.x, this.y, 15, 15);
+                ctx.fillStyle = '#fff';
+                ctx.font = '10px Arial';
+                ctx.fillText('Cave', this.x + 17, this.y + 10);
+                if (this.occupants.length > 0) {
+                    ctx.fillText(`Occupants: ${this.occupants.length}/${this.capacity}`, this.x + 17, this.y + 20);
+                }
+                ctx.restore();
+            }
+        }
+
+        // mine
+        class Mineral {
+            constructor(x, y, type) {
+                this.x = x;
+                this.y = y;
+                this.type = type;
+            }
+
+            draw() {
+                if (!ctx || !isInView(this.x, this.y, 12)) return;
+                ctx.save();
+                ctx.fillStyle = this.type === 'stone' ? '#888' : '#aaa';
+                ctx.fillRect(this.x, this.y, 12, 12);
+                ctx.restore();
+            }
+        }
+
+        // building
+        class Inn {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.hp = 300;
+                this.occupants = [];
+                this.capacity = 5;
+                this.type = 'inn';
+            }
+
+            draw() {
+                if (!ctx || this.hp <= 0 || !isInView(this.x, this.y, 12)) return;
+                ctx.save();
+                ctx.fillStyle = this.hp < 150 ? '#f00' : '#a55';
+                ctx.fillRect(this.x, this.y, 12, 12);
+                ctx.fillStyle = '#fff';
+                ctx.font = '8px Arial';
+                ctx.fillText(`Inn: ${Math.round(this.hp)}`, this.x + 14, this.y + 8);
+                if (this.occupants.length > 0) {
+                    ctx.fillText(`Occupants: ${this.occupants.length}/${this.capacity}`, this.x + 14, this.y + 16);
+                }
+                ctx.restore();
+            }
+        }
+
+        
+        class Tavern {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.hp = 300;
+                this.occupants = [];
+                this.capacity = 5;
+                this.type = 'tavern';
+            }
+
+            draw() {
+                if (!ctx || this.hp <= 0 || !isInView(this.x, this.y, 12)) return;
+                ctx.save();
+                ctx.fillStyle = this.hp < 150 ? '#f00' : '#5a5';
+                ctx.fillRect(this.x, this.y, 12, 12);
+                ctx.fillStyle = '#fff';
+                ctx.font = '8px Arial';
+                ctx.fillText(`Tavern: ${Math.round(this.hp)}`, this.x + 14, this.y + 8);
+                if (this.occupants.length > 0) {
+                    ctx.fillText(`Occupants: ${this.occupants.length}/${this.capacity}`, this.x + 14, this.y + 16);
+                }
+                ctx.restore();
+            }
+        }
+
+      
+        class Library {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.hp = 300;
+                this.occupants = [];
+                this.capacity = 3;
+                this.type = 'library';
+            }
+
+            draw() {
+                if (!ctx || this.hp <= 0 || !isInView(this.x, this.y, 12)) return;
+                ctx.save();
+                ctx.fillStyle = this.hp < 150 ? '#f00' : '#55a';
+                ctx.fillRect(this.x, this.y, 12, 12);
+                ctx.fillStyle = '#fff';
+                ctx.font = '8px Arial';
+                ctx.fillText(`Library: ${Math.round(this.hp)}`, this.x + 14, this.y + 8);
+                if (this.occupants.length > 0) {
+                    ctx.fillText(`Occupants: ${this.occupants.length}/${this.capacity}`, this.x + 14, this.y + 16);
+                }
+                ctx.restore();
+            }
+        }
+
+       
+        class Barracks {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.hp = 400;
+                this.occupants = [];
+                this.capacity = 5;
+                this.type = 'barracks';
+            }
+
+            draw() {
+                if (!ctx || this.hp <= 0 || !isInView(this.x, this.y, 15)) return;
+                ctx.save();
+                ctx.fillStyle = this.hp < 200 ? '#f00' : '#a33';
+                ctx.fillRect(this.x, this.y, 15, 15);
+                ctx.fillStyle = '#fff';
+                ctx.font = '8px Arial';
+                ctx.fillText(`Barracks: ${Math.round(this.hp)}`, this.x + 17, this.y + 8);
+                if (this.occupants.length > 0) {
+                    ctx.fillText(`Occupants: ${this.occupants.length}/${this.capacity}`, this.x + 17, this.y + 16);
+                }
+                ctx.restore();
+            }
+        }
+
+        
+        class Blacksmith {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.hp = 500;
+                this.type = 'blacksmith';
+            }
+
+            draw() {
+                if (!ctx || !isInView(this.x, this.y, 20)) return;
+                ctx.save();
+                ctx.fillStyle = this.hp < 250 ? '#f00' : '#8b0000';
+                ctx.fillRect(this.x, this.y, 20, 20);
+                ctx.fillStyle = '#fff';
+                ctx.font = '10px Arial';
+                ctx.fillText(`Blacksmith: ${Math.round(this.hp)}`, this.x + 22, this.y + 10);
+                ctx.restore();
+            }
+        }
+
+        // wepaon
+        class Cannon {
+            constructor(x, y, house) {
+                this.x = x;
+                this.y = y;
+                this.cooldown = 0;
+                this.range = 300;
+                this.house = house;
+            }
+
+            draw() {
+                if (!ctx || !isInView(this.x, this.y, 5)) return;
+                ctx.save();
+                ctx.fillStyle = '#f0f';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, 3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            update(dt) {
+                if (!isInView(this.x, this.y, this.range)) return;
+                this.cooldown = Math.max(0, this.cooldown - dt);
+                if (this.cooldown > 0) return;
+                const nearbyMonsters = gameState.grid.getNearby(this.x, this.y, this.range).filter(
+                    item => item instanceof Monster && item.alive
+                );
+                if (nearbyMonsters.length > 0) {
+                    const target = nearbyMonsters.reduce((closest, m) => {
+                        const dist = Math.sqrt((m.x - this.x) ** 2 + (m.y - this.y) ** 2);
+                        return dist < closest.dist ? { m, dist } : closest;
+                    }, { m: null, dist: Infinity }).m;
+                    if (target) {
+                        target.hp -= 50;
+                        gameState.damageNumbers.push(DamageNumber.get(target.x, target.y, 50, 'damage'));
+                        if (target.hp <= 0) {
+                            target.alive = false;
+                            gameState.morale = Math.min(100, gameState.morale + 5);
+                            logEvent(`Cannon at (${Math.round(this.x)},${Math.round(this.y)}) killed ${target.name}!`, 'birth');
+                        } else {
+                            logEvent(`Cannon hit ${target.name} for 50 damage!`, 'birth');
+                        }
+                        this.cooldown = 10;
+                    }
+                }
+            }
+        }
+
+        // damage
+        class DamageNumber {
+            static pool = [];
+            static get(x, y, value, type) {
+                let d = DamageNumber.pool.find(d => !d.active);
+                if (!d) {
+                    d = new DamageNumber(x, y, value, type);
+                    DamageNumber.pool.push(d);
+                } else {
+                    d.x = x;
+                    d.y = y;
+                    d.value = value;
+                    d.type = type;
+                    d.time = 0;
+                    d.active = true;
+                }
+                return d;
+            }
+
+            constructor(x, y, value, type) {
+                this.x = x;
+                this.y = y;
+                this.value = value;
+                this.type = type;
+                this.time = 0;
+                this.duration = 1;
+                this.active = true;
+            }
+
+            update(dt) {
+                if (!this.active) return false;
+                this.y -= 20 * dt;
+                this.time += dt;
+                if (this.time >= this.duration) {
+                    this.active = false;
+                    return false;
+                }
+                return true;
+            }
+
+            draw() {
+                if (!this.active || !ctx || !isInView(this.x, this.y, 10)) return;
+                ctx.save();
+                ctx.fillStyle = this.type === 'damage' ? '#f00' : '#0f0';
+                ctx.font = '10px Arial';
+                ctx.fillText(this.value, this.x, this.y);
+                ctx.restore();
+            }
+        }
+
+        
+        class SpatialGrid {
+            constructor(width, height, cellSize) {
+                this.cellSize = cellSize;
+                this.cells = new Map();
+                this.width = width;
+                this.height = height;
+            }
+
+            getCellKey(x, y) {
+                return `${Math.floor(x / this.cellSize)},${Math.floor(y / this.cellSize)}`;
+            }
+
+            addItem(item) {
+                const key = this.getCellKey(item.x, item.y);
+                if (!this.cells.has(key)) this.cells.set(key, new Set());
+                this.cells.get(key).add(item);
+            }
+
+            getNearby(x, y, radius) {
+                const result = new Set(),
+                      col = Math.floor(x / this.cellSize),
+                      row = Math.floor(y / this.cellSize),
+                      range = Math.ceil(radius / this.cellSize);
+                for (let i = col - range; i <= col + range; i++)
+                    for (let j = row - range; j <= row + range; j++) {
+                        const key = `${i},${j}`;
+                        if (this.cells.has(key)) this.cells.get(key).forEach(item => result.add(item));
+                    }
+                return Array.from(result);
+            }
+
+            clear() {
+                this.cells.clear();
+            }
+        }
+
+        // names
+        const hunterNames = ['palq0', 'palq1', 'qpal2', 'palq3', 'palq4', 'palq5', 'palq6', 'palq7', 'palq8', 'palq9'],
+              looterNames = ['55', '56', '87', '88', '54', '12', '34', '8998', '78786', '783'],
+              civilianNames = ['332', '243', '876', '786', '788', '888', '777', '222', '333', '444'],
+              families = ['Ironclad', 'Stormborn', 'Duskfall', 'Brightforge'];
+
+        function generateUniqueName(role, usedNames) {
+            const namePool = role === 'Hunter' ? hunterNames : role === 'Looter' ? looterNames : civilianNames;
+            if (usedNames.length >= namePool.length) return `${role}${usedNames.length}`;
+            let name;
+            do name = namePool[Math.floor(Math.random() * namePool.length)];
+            while (usedNames.includes(name));
+            usedNames.push(name);
+            return name;
+        }
+
+        function generateMonsterName() {
+            const prefixes = ['2', '3', '4', '5', '6', '7', '8', '9', '10', '11'],
+                  suffixes = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'];
+            return `${prefixes[Math.floor(Math.random() * prefixes.length)]}${suffixes[Math.floor(Math.random() * suffixes.length)]}`;
+        }
+
+        function getRandomFamily() {
+            return families[Math.floor(Math.random() * families.length)];
+        }
+
+        function getRandomGender() {
+            return Math.random() < 0.5 ? 'male' : 'female';
+        }
+
+        function logEvent(message, type = '') {
+            const year = gameState.inGameYears.toFixed(1);
+            gameState.logBuffer.push({ message: `[Year ${year}] ${message}`, type });
+            if (gameState.gameTime - gameState.lastLogFlush >= 0.5) {
+                flushLogBuffer();
+            }
+        }
+
+        function flushLogBuffer() {
+            gameState.lastLogFlush = gameState.gameTime;
+            while (gameState.logBuffer.length > 0) {
+                const { message, type } = gameState.logBuffer.shift();
+                const p = document.createElement('p');
+                p.textContent = message;
+                if (type) p.classList.add(`log-${type}`);
+                logDiv.appendChild(p);
+                while (logDiv.children.length > 50) logDiv.removeChild(logDiv.firstChild);
+                logDiv.scrollTop = logDiv.scrollHeight;
+            }
+        }
+
+        function isInVisionArc(unit, x, y) {
+            const dx = x - unit.x, dy = y - unit.y, angle = Math.atan2(dy, dx);
+            const angleDiff = Math.abs(((angle - unit.visionAngle + Math.PI) % (2 * Math.PI)) - Math.PI);
+            return angleDiff <= unit.visionArc / 2;
+        }
+
+        function spawnEnemies(count = 1, strength = 1) {
+            const clampedCount = Math.max(1, Math.min(50, count));
+            for (let i = 0; i < clampedCount; i++) {
+                const edge = Math.random() < 0.25 ? { x: gameState.worldWidth, y: Math.random() * gameState.worldHeight } :
+                             Math.random() < 0.5 ? { x: 0, y: Math.random() * gameState.worldHeight } :
+                             Math.random() < 0.75 ? { x: Math.random() * gameState.worldWidth, y: 0 } :
+                             { x: Math.random() * gameState.worldWidth, y: gameState.worldHeight };
+                const m = new Monster(gameState.monsters.length, edge.x, edge.y, strength);
+                gameState.monsters.push(m);
+                logEvent(`${m.name} appeared at (${Math.round(edge.x)},${Math.round(edge.y)})`, 'alert');
+            }
+        }
+
+        function replaceWatcher() {
+            const civilians = gameState.population.filter(u => u.alive && u.role === 'Medic');
+            if (civilians.length > 0) {
+                const newWatcher = civilians[Math.floor(Math.random() * civilians.length)];
+                const availableHouse = gameState.houses.find(h => h.hp > 0);
+                if (availableHouse) {
+                    newWatcher.role = 'Watcher';
+                    newWatcher.color = '#0f0';
+                    newWatcher.x = availableHouse.x;
+                    newWatcher.y = availableHouse.y;
+                    newWatcher.visionAngle = Math.atan2(availableHouse.y - gameState.castle.y, availableHouse.x - gameState.castle.x);
+                    logEvent(`${newWatcher.name} promoted to Watcher at (${Math.round(availableHouse.x)},${Math.round(availableHouse.y)})`, 'birth');
+                }
+            }
+        }
+
+        function rotateDayOff() {
+            if (gameState.gameTime - gameState.lastDayOffRotation >= 60) {
+                gameState.lastDayOffRotation = gameState.gameTime;
+                gameState.rotationSchedule = gameState.rotationSchedule.filter(s => s.endTime > gameState.gameTime);
+                gameState.population.forEach(u => {
+                    if (!u.alive) return;
+                    const schedule = gameState.rotationSchedule.find(s => s.unitId === u.id);
+                    if (schedule && gameState.gameTime >= schedule.endTime) {
+                        u.dayOff = false;
+                        u.state = (u.role === 'Hunter' || u.role === 'Looter') ? 'patrolling' : 'idle';
+                        u.patrolMap(0);
+                        logEvent(`${u.name} day off ended, resuming ${u.state}`, 'birth');
+                    }
+                });
+                const eligibleUnits = gameState.population.filter(u => u.alive && !u.dayOff && !gameState.rotationSchedule.find(s => s.unitId === u.id));
+                const targetCount = Math.min(8, eligibleUnits.length);
+                for (let i = gameState.rotationSchedule.length; i < targetCount; i++) {
+                    if (eligibleUnits.length === 0) break;
+                    const unit = eligibleUnits[Math.floor(Math.random() * eligibleUnits.length)];
+                    unit.dayOff = true;
+                    unit.dayOffEndTime = gameState.gameTime + 60;
+                    unit.state = 'leisure';
+                    unit.leisureTime = 0;
+                    gameState.rotationSchedule.push({ unitId: unit.id, endTime: unit.dayOffEndTime });
+                    logEvent(`${unit.name} assigned day off until ${Math.round(unit.dayOffEndTime)}`, 'birth');
+                    eligibleUnits.splice(eligibleUnits.indexOf(unit), 1);
+                }
+            }
+        }
+
+        function startGame() {
+            try {
+                gameState = {
+                    population: [],
+                    monsters: [],
+                    animals: [],
+                    loot: [],
+                    houses: [],
+                    trees: [],
+                    caves: [],
+                    minerals: [],
+                    inns: [],
+                    taverns: [],
+                    libraries: [],
+                    barracks: [],
+                    blacksmith: null,
+                    cannons: [],
+                    livestock: 0,
+                    metal: 0,
+                    weapons: 0,
+
+                    watcherSignals: {
+                        enemies: [],
+                        animals: [],
+                        loot: [],
+                        resources: [],
+                        wounded: [],
+                        repairs: [],
+                        weapons: [],
+                        backup: []
+                    },
+                    memoryEnemies: [],
+                    potions: 1000,
+                    food: 100,
+                    wood: 0,
+                    stone: 0,
+                    waveCount: 0,
+                    gameTime: 0,
+                    inGameYears: 0,
+                    isPaused: false,
+                    gameOver: false,
+                    lastWaveTime: 0,
+                    lastSocialYear: 0,
+                    lastAnimalSpawn: 0,
+                    lastDayOffRotation: 0,
+                    lastResourceRespawn: 0,
+                    families: {},
+                    history: [],
+                    market: { x: 350, y: 350 },
+                    worldWidth: 1600,
+                    worldHeight: 1200,
+                    camera: { x: 400, y: 300, zoom: 1 },
+                    castle: null,
+                    tower: null,
+                    gatheredResources: [],
+                    damageNumbers: [],
+                    morale: 100,
+                    logBuffer: [],
+                    lastLogFlush: 0,
+                    aiTickAccumulator: 0,
+                    aiTickInterval: 0.2,
+                    rotationSchedule: []
+                };
+                gameState.grid = new SpatialGrid(gameState.worldWidth, gameState.worldHeight, 50);
+                gameState.castle = { x: 400, y: 300, width: 50, height: 50, hp: 1000, type: 'castle' };
+                gameState.tower = { x: 400, y: 300, radius: 100, hp: 500, type: 'tower' };
+                gameState.blacksmith = new Blacksmith(350, 350);
+                logEvent('Castle, tower, and blacksmith initialized', 'alert');
+
+                const numHouses = 25;
+                const radius = 150, angleStep = (2 * Math.PI) / numHouses;
+                for (let i = 0; i < numHouses; i++) {
+                    const angle = i * angleStep, x = 400 + radius * Math.cos(angle), y = 300 + radius * Math.sin(angle);
+                    gameState.houses.push(new House(x, y));
+                }
+                for (let i = 0; i < 5; i++) {
+                    gameState.inns.push(new Inn(380 + i * 20, 320));
+                    gameState.taverns.push(new Tavern(380 + i * 20, 340));
+                    gameState.libraries.push(new Library(380 + i * 20, 360));
+                    gameState.barracks.push(new Barracks(380 + i * 20, 380));
+                }
+
+                for (let i = 0; i < 100; i++) {
+                    const x = 50 + (gameState.worldWidth - 100) * Math.random(), y = 50 + (gameState.worldHeight - 100) * Math.random();
+                    gameState.trees.push(new Tree(x, y));
+                }
+                for (let i = 0; i < 50; i++) {
+                    const x = 50 + (gameState.worldWidth - 100) * Math.random(), y = 50 + (gameState.worldHeight - 100) * Math.random();
+                    gameState.caves.push(new Cave(x, y));
+                }
+                for (let i = 0; i < 50; i++) {
+                    const x = 50 + (gameState.worldWidth - 100) * Math.random(), y = 50 + (gameState.worldHeight - 100) * Math.random();
+                    gameState.minerals.push(new Mineral(x, y, Math.random() < 0.5 ? 'stone' : 'metal'));
+                }
+                for (let i = 0; i < 30; i++) {
+                    gameState.animals.push(new Animal(i, 100 + (gameState.worldWidth - 200) * Math.random(), 100 + (gameState.worldHeight - 200) * Math.random()));
+                }
+                for (let i = 0; i < 5; i++) {
+                    const x = 50 + (gameState.worldWidth - 100) * Math.random(), y = 50 + (gameState.worldHeight - 100) * Math.random();
+                    gameState.loot.push(new Loot(x, y, 'Regular', 'Potion'));
+                }
+
+                const usedNames = [];
+                let watcherIndex = 0;
+                for (let i = 0; i < 25; i++) {
+                    const role = i < 12 ? 'Watcher' : 'Medic';
+                    const name = generateUniqueName(role, usedNames);
+                    const family = getRandomFamily();
+                    const gender = getRandomGender();
+                    const house = gameState.houses[i % numHouses];
+                    gameState.families[family] = gameState.families[family] || [];
+                    gameState.families[family].push(name);
+                    let x, y, visionAngle;
+                    if (role === 'Watcher') {
+                        const pos = watcherPositions[watcherIndex % watcherPositions.length];
+                        x = pos.x;
+                        y = pos.y;
+                        visionAngle = pos.angle;
+                        watcherIndex++;
+                    } else {
+                        x = gameState.market.x + (Math.random() - 0.5) * 20;
+                        y = gameState.market.y + (Math.random() - 0.5) * 20;
+                        visionAngle = 0;
+                    }
+                    const unit = new Unit(gameState.population.length, 'Civilian', role, '#0f0', x, y, `${name} the ${role}`, family, house, gender, visionAngle);
+                    unit.dayOff = false;
+                    unit.dayOffEndTime = 0;
+                    unit.leisureTime = 0;
+                    gameState.population.push(unit);
+                    gameState.grid.addItem(unit);
+                    logEvent(`${name} the ${role} (${family} Clan, ${gender}) joined at (${Math.round(x)},${Math.round(y)}).`, 'birth');
+                }
+                for (let i = 0; i < 25; i++) {
+                    const name = generateUniqueName('Looter', usedNames);
+                    const family = getRandomFamily();
+                    const gender = getRandomGender();
+                    const house = gameState.houses[i % numHouses];
+                    gameState.families[family] = gameState.families[family] || [];
+                    gameState.families[family].push(name);
+                    const x = gameState.market.x + (Math.random() - 0.5) * 20;
+                    const y = gameState.market.y + (Math.random() - 0.5) * 20;
+                    const unit = new Unit(gameState.population.length, 'Looter', 'Looter', '#90f', x, y, `${name} the Looter`, family, house, gender, 0);
+                    unit.dayOff = false;
+                    unit.dayOffEndTime = 0;
+                    unit.leisureTime = 0;
+                    gameState.population.push(unit);
+                    gameState.grid.addItem(unit);
+                    logEvent(`${name} the Looter (${family} Clan, ${gender}) joined at (${Math.round(x)},${Math.round(y)}).`, 'birth');
+                }
+                for (let i = 0; i < 25; i++) {
+                    const name = generateUniqueName('Hunter', usedNames);
+                    const family = getRandomFamily();
+                    const gender = getRandomGender();
+                    const house = gameState.houses[i % numHouses];
+                    gameState.families[family] = gameState.families[family] || [];
+                    gameState.families[family].push(name);
+                    const x = gameState.castle.x + (Math.random() - 0.5) * 20;
+                    const y = gameState.castle.y + (Math.random() - 0.5) * 20;
+                    const unit = new Unit(gameState.population.length, 'Hunter', 'Hunter', '#f90', x, y, `${name} the Hunter`, family, house, gender, 0);
+                    unit.dayOff = false;
+                    unit.dayOffEndTime = 0;
+                    unit.leisureTime = 0;
+                    gameState.population.push(unit);
+                    gameState.grid.addItem(unit);
+                    logEvent(`${name} the Hunter (${family} Clan, ${gender}) joined at (${Math.round(x)},${Math.round(y)}).`, 'birth');
+                }
+
+                const eligibleUnits = gameState.population.filter(u => u.alive);
+                for (let i = 0; i < 8; i++) {
+                    const unit = eligibleUnits[Math.floor(Math.random() * eligibleUnits.length)];
+                    unit.dayOff = true;
+                    unit.dayOffEndTime = gameState.gameTime + 60;
+                    unit.state = 'leisure';
+                    unit.leisureTime = 0;
+                    gameState.rotationSchedule.push({ unitId: unit.id, endTime: unit.dayOffEndTime });
+                    logEvent(`${unit.name} assigned day off until ${Math.round(unit.dayOffEndTime)}`, 'birth');
+                    eligibleUnits.splice(eligibleUnits.indexOf(unit), 1);
+                }
+
+                logEvent(`Civilization founded with ${gameState.population.length} units, ${gameState.potions} potions, ${gameState.food} food.`, 'alert');
+                if (ctx) {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                                        ctx.fillStyle = '#666';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                }
+                gameLoop(0);
+            } catch (error) {
+                logEvent(`Failed to start game: ${error.message}`, 'alert');
+                console.error('Game start error:', error);
+            }
+        }
+
+        function restartGame() {
+            gameState.isPaused = false;
+            pauseMenuDiv.style.display = 'none';
+            logDiv.innerHTML = '';
+            startGame();
+        }
+
+        function resumeGame() {
+            gameState.isPaused = false;
+            pauseMenuDiv.style.display = 'none';
+            lastTime = performance.now();
+            gameLoop(lastTime);
+        }
+
+        let lastTime = performance.now();
+
+        function gameLoop(timestamp) {
+            if (gameState.isPaused || gameState.gameOver) return;
+            const dt = Math.min((timestamp - lastTime) / 1000, 0.1);
+            lastTime = timestamp;
+
+            try {
+                gameState.gameTime += dt;
+                gameState.inGameYears = gameState.gameTime / 60;
+                gameState.aiTickAccumulator += dt;
+
+                // camera
+                gameState.camera.x = gameState.castle.x;
+                gameState.camera.y = gameState.castle.y;
+
+                // enemy waves
+                if (gameState.gameTime - gameState.lastWaveTime >= 300) {
+                    gameState.waveCount++;
+                    gameState.lastWaveTime = gameState.gameTime;
+                    const count = Math.round(3 + gameState.waveCount * 0.5);
+                    const strength = 1 + gameState.waveCount * 0.1;
+                    spawnEnemies(count, strength);
+                    logEvent(`Wave ${gameState.waveCount} incoming! ${count} enemies, strength ${strength.toFixed(1)}`, 'alert');
+                }
+
+                // animalsss
+                if (gameState.gameTime - gameState.lastAnimalSpawn >= 60 && gameState.animals.length < 50) {
+                    gameState.lastAnimalSpawn = gameState.gameTime;
+                    for (let i = 0; i < 5; i++) {
+                        const x = 50 + (gameState.worldWidth - 100) * Math.random();
+                        const y = 50 + (gameState.worldHeight - 100) * Math.random();
+                        gameState.animals.push(new Animal(gameState.animals.length, x, y));
+                        logEvent(`Animal spawned at (${Math.round(x)},${Math.round(y)})`, 'birth');
+                    }
+                }
+
+                // resapawns
+                if (gameState.gameTime - gameState.lastResourceRespawn >= 120) {
+                    gameState.lastResourceRespawn = gameState.gameTime;
+                    for (let i = 0; i < 10; i++) {
+                        const x = 50 + (gameState.worldWidth - 100) * Math.random();
+                        const y = 50 + (gameState.worldHeight - 100) * Math.random();
+                        gameState.trees.push(new Tree(x, y));
+                        gameState.grid.addItem(gameState.trees[gameState.trees.length - 1]);
+                    }
+                    for (let i = 0; i < 5; i++) {
+                        const x = 50 + (gameState.worldWidth - 100) * Math.random();
+                        const y = 50 + (gameState.worldHeight - 100) * Math.random();
+                        gameState.minerals.push(new Mineral(x, y, Math.random() < 0.5 ? 'stone' : 'metal'));
+                        gameState.grid.addItem(gameState.minerals[gameState.minerals.length - 1]);
+                    }
+                    logEvent('Resources respawned across the map', 'birth');
+                }
+
+                // grid
+                gameState.grid.clear();
+                gameState.population.forEach(u => { if (u.alive && !u.inShelter) gameState.grid.addItem(u); });
+                gameState.monsters.forEach(m => { if (m.alive) gameState.grid.addItem(m); });
+                gameState.animals.forEach(a => { if (a.alive) gameState.grid.addItem(a); });
+                gameState.trees.forEach(t => { if (t.state !== 'small') gameState.grid.addItem(t); });
+                gameState.caves.forEach(c => gameState.grid.addItem(c));
+                gameState.minerals.forEach(m => gameState.grid.addItem(m));
+
+                // unitss
+                gameState.population.forEach(unit => {
+                    if (!unit.alive) return;
+                    unit.update(dt);
+                    if (unit.hp <= 0 && unit.alive) {
+                        unit.alive = false;
+                        gameState.morale = Math.max(0, gameState.morale - 10);
+                        logEvent(`${unit.name} has died!`, 'death');
+                        if (unit.inShelter) {
+                            unit.inShelter.occupants = unit.inShelter.occupants.filter(u => u !== unit);
+                            unit.inShelter = null;
+                        }
+                        if (unit.role === 'Watcher') replaceWatcher();
+                    }
+                });
+
+               
+                gameState.monsters.forEach(monster => {
+                    if (monster.alive) monster.update(dt);
+                });
+
+               
+                gameState.animals.forEach(animal => {
+                    if (animal.alive) animal.update(dt);
+                });
+
+                
+                gameState.cannons.forEach(cannon => cannon.update(dt));
+
+                
+                gameState.damageNumbers = gameState.damageNumbers.filter(d => d.update(dt));
+
+               
+                rotateDayOff();
+
+              
+                gameState.watcherSignals.enemies = gameState.watcherSignals.enemies.filter(s => s.expires > gameState.gameTime);
+
+                
+                [gameState.houses, gameState.caves, gameState.inns, gameState.taverns].flat().forEach(shelter => {
+                    shelter.occupants.forEach(unit => {
+                        if (gameState.potions >= 1 && unit.hp < 100) {
+                            gameState.potions -= 1;
+                            unit.hp = Math.min(100, unit.hp + 20);
+                            unit.stamina = Math.min(100, unit.stamina + 10);
+                            unit.morale = Math.min(100, unit.morale + 5);
+                            logEvent(`${unit.name} healing in ${shelter.type} at (${Math.round(shelter.x)},${Math.round(shelter.y)})`, 'heal');
+                        }
+                    });
+                });
+
+               
+                if (gameState.castle.hp <= 0 || gameState.population.every(u => !u.alive)) {
+                    gameState.gameOver = true;
+                    logEvent('Game Over! Castle destroyed or population lost.', 'alert');
+                    pauseMenuDiv.innerHTML = '<h2>Game Over</h2><button onclick="restartGame()">Restart</button>';
+                    pauseMenuDiv.style.display = 'block';
+                }
+
+               
+                render();
+
+              
+                updateUI();
+
+                
+                if (gameState.aiTickAccumulator >= gameState.aiTickInterval) {
+                    gameState.aiTickAccumulator -= gameState.aiTickInterval;
+                    // Additional AI logic can be added here if needed
+                }
+
+                requestAnimationFrame(gameLoop);
+            } catch (error) {
+                logEvent(`Game loop error: ${error.message}`, 'alert');
+                console.error('Game loop error:', error);
+                gameState.isPaused = true;
+                pauseMenuDiv.style.display = 'block';
+            }
+        }
+
+        function render() {
+            if (!ctx) return;
+            ctx.save();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const cam = gameState.camera;
+            ctx.translate(canvas.width / 2 - cam.x * cam.zoom, canvas.height / 2 - cam.y * cam.zoom);
+            ctx.scale(cam.zoom, cam.zoom);
+
+            
+            if (gameState.castle && isInView(gameState.castle.x, gameState.castle.y, 25)) {
+                ctx.fillStyle = gameState.castle.hp < 500 ? '#f00' : '#888';
+                ctx.fillRect(gameState.castle.x - 25, gameState.castle.y - 25, 50, 50);
+                ctx.fillStyle = '#f00';
+                ctx.fillRect(gameState.castle.x - 25, gameState.castle.y - 40, 50 * (gameState.castle.hp / 1000), 5);
+                ctx.strokeStyle = '#000';
+                ctx.strokeRect(gameState.castle.x - 25, gameState.castle.y - 40, 50, 5);
+                ctx.fillStyle = '#fff';
+                ctx.font = '10px Arial';
+                ctx.fillText(`Castle: ${Math.round(gameState.castle.hp)}`, gameState.castle.x + 30, gameState.castle.y);
+            }
+
+           
+            if (gameState.tower && isInView(gameState.tower.x, gameState.tower.y, 10)) {
+                ctx.fillStyle = gameState.tower.hp < 250 ? '#f00' : '#aaa';
+                ctx.beginPath();
+                ctx.arc(gameState.tower.x, gameState.tower.y, 10, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#f00';
+                ctx.fillRect(gameState.tower.x - 25, gameState.tower.y - 20, 50 * (gameState.tower.hp / 500), 5);
+                ctx.strokeStyle = '#000';
+                ctx.strokeRect(gameState.tower.x - 25, gameState.tower.y - 20, 50, 5);
+                ctx.fillStyle = '#fff';
+                ctx.font = '10px Arial';
+                ctx.fillText(`Tower: ${Math.round(gameState.tower.hp)}`, gameState.tower.x + 12, gameState.tower.y);
+            }
+
+           
+            if (isInView(gameState.market.x, gameState.market.y, 15)) {
+                ctx.fillStyle = '#ff0';
+                ctx.fillRect(gameState.market.x - 15, gameState.market.y - 15, 30, 30);
+                ctx.fillStyle = '#fff';
+                ctx.font = '10px Arial';
+                ctx.fillText('Market', gameState.market.x + 20, gameState.market.y);
+            }
+
+           
+            gameState.houses.forEach(house => house.draw());
+            gameState.trees.forEach(tree => tree.draw());
+            gameState.caves.forEach(cave => cave.draw());
+            gameState.minerals.forEach(mineral => mineral.draw());
+            gameState.inns.forEach(inn => inn.draw());
+            gameState.taverns.forEach(tavern => tavern.draw());
+            gameState.libraries.forEach(library => library.draw());
+            gameState.barracks.forEach(barracks => barracks.draw());
+            gameState.blacksmith.draw();
+            gameState.cannons.forEach(cannon => cannon.draw());
+            gameState.loot.forEach(loot => loot.draw());
+            gameState.animals.forEach(animal => animal.draw());
+            gameState.monsters.forEach(monster => monster.draw());
+            gameState.population.forEach(unit => unit.draw());
+            gameState.damageNumbers.forEach(d => d.draw());
+
+            
+            gameState.population.filter(u => u.role === 'Watcher' && u.alive && !u.inShelter).forEach(watcher => {
+                if (!isInView(watcher.x, watcher.y, watcher.visionRadius)) return;
+                ctx.save();
+                ctx.fillStyle = 'rgba(255, 255, 0, 0.00)';
+                ctx.beginPath();
+                ctx.moveTo(watcher.x, watcher.y);
+                ctx.arc(watcher.x, watcher.y, watcher.visionRadius, watcher.visionAngle - watcher.visionArc / 2, watcher.visionAngle + watcher.visionArc / 2);
+                ctx.closePath();
+                ctx.fill();
+                ctx.restore();
+            });
+
+            ctx.restore();
+        }
+
+        function updateUI() {
+            statsDiv.innerHTML = `
+                <p>Year: ${gameState.inGameYears.toFixed(1)}</p>
+                <p>Population: ${gameState.population.filter(u => u.alive).length} (Hunters: ${gameState.population.filter(u => u.alive && u.role === 'Hunter').length}, Looters: ${gameState.population.filter(u => u.alive && u.role === 'Looter').length}, Civilians: ${gameState.population.filter(u => u.alive && u.role !== 'Hunter' && u.role !== 'Looter').length})</p>
+                <p>Wave: ${gameState.waveCount}</p>
+                <p>Morale: ${Math.round(gameState.morale)}</p>
+                <p>Castle HP: ${Math.round(gameState.castle.hp)}</p>
+            `;
+            resourceBarDiv.innerHTML = `
+                <p>Potions: ${Math.round(gameState.potions)}</p>
+                <p>Food: ${Math.round(gameState.food)}</p>
+                <p>Wood: ${Math.round(gameState.wood)}</p>
+                <p>Stone: ${Math.round(gameState.stone)}</p>
+                <p>Metal: ${Math.round(gameState.metal)}</p>
+                <p>Weapons: ${Math.round(gameState.weapons)}</p>
+                <p>Livestock: ${Math.round(gameState.livestock)}</p>
+            `;
+        }
+
+        
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') {
+                gameState.isPaused = !gameState.isPaused;
+                pauseMenuDiv.style.display = gameState.isPaused ? 'block' : 'none';
+                if (!gameState.isPaused) {
+                    lastTime = performance.now();
+                    gameLoop(lastTime);
+                }
+            }
+        });
+
+        canvas.addEventListener('wheel', e => {
+            e.preventDefault();
+            const zoomSpeed = 0.1;
+            gameState.camera.zoom = Math.max(0.5, Math.min(2, gameState.camera.zoom + (e.deltaY < 0 ? zoomSpeed : -zoomSpeed)));
+        });
+
+        let isDragging = false, lastMouseX = 0, lastMouseY = 0;
+        canvas.addEventListener('mousedown', e => {
+            isDragging = true;
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+        });
+        canvas.addEventListener('mousemove', e => {
+            if (isDragging) {
+                const dx = (e.clientX - lastMouseX) / gameState.camera.zoom;
+                const dy = (e.clientY - lastMouseY) / gameState.camera.zoom;
+                gameState.camera.x -= dx;
+                gameState.camera.y -= dy;
+                lastMouseX = e.clientX;
+                lastMouseY = e.clientY;
+            }
+        });
+        canvas.addEventListener('mouseup', () => isDragging = false);
+        canvas.addEventListener('mouseleave', () => isDragging = false);
+
+        
+        startGame();
+    </script>
+</body>
+</html>
+
