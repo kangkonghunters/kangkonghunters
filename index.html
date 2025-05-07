@@ -15,6 +15,7 @@
     button:hover::before { left: 100%; }
     .enter-button { background: linear-gradient(45deg, #007bff, #00ccff); box-shadow: 0 0 10px rgba(0, 123, 255, 0.5); }
     .test-button { background: linear-gradient(45deg, #ff9900, #ff6600); box-shadow: 0 0 10px rgba(255, 153, 0, 0.5); margin-top: 10px; }
+    .land-button {background: linear-gradient(45deg, #28a745, #00cc99); box-shadow: 0 0 10px rgba(40, 167, 69, 0.5); margin-top: 10px; }
     .ronin-btn { background: linear-gradient rectifier(45deg, #28a745, #00cc99); box-shadow: 0 0 10px rgba(40, 167, 69, 0.5); }
     .guest-btn { background: linear-gradient(45deg, #6c757d, #adb5bd); box-shadow: 0 0 10px rgba(108, 117, 125, 0.5); }
     .logout-button { background: linear-gradient(45deg, #dc3545, #ff6666); box-shadow: 0 0 10px rgba(220, 53, 69, 0.5); }
@@ -346,6 +347,7 @@
     </div>
     <button class="enter-button" id="enterButton">ENTER</button>
     <button class="test-button" id="testButton">TEST</button>
+    <button class="land-button" id="landButton">LAND</button>
   </div>
 
   <div class="wallet-connect-screen" id="walletConnectScreen">
@@ -449,6 +451,7 @@
     const logoSection = document.querySelector('.logo-section'), 
           enterButton = document.getElementById('enterButton'), 
           testButton = document.getElementById('testButton'),
+          landButton = document.getElementById('landButton'),
           walletConnectScreen = document.getElementById('walletConnectScreen'), 
           usernameModal = document.getElementById('usernameModal'), 
           mainContainer = document.getElementById('mainContainer'), 
@@ -1082,6 +1085,10 @@
 
     testButton.addEventListener('click', () => {
       window.location.href = './games.html';
+    });
+
+    landButton.addEventListener('click', () => {
+      window.location.href = './land.html';
     });
 
     document.getElementById('connectRoninBtn').addEventListener('click', connectRoninWallet);
