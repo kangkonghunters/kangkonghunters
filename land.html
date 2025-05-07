@@ -13,7 +13,7 @@
             margin: 0;
             display: flex;
             flex-direction: row;
-            height: 100vh;
+            min-height: 100vh;
             overflow: hidden;
         }
         #mapContainer {
@@ -37,6 +37,7 @@
         #map {
             width: 100%;
             height: auto;
+            max-height: 80vh;
             border-radius: 8px;
             border: 2px solid #303030;
             cursor: none;
@@ -86,6 +87,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            touch-action: manipulation;
         }
         .question:hover {
             background: #3a3a3a;
@@ -132,10 +134,77 @@
         }
         ::-webkit-scrollbar-thumb {
             background: #ff0000;
+            border-radius=20px;
             border-radius: 4px;
         }
         ::-webkit-scrollbar-thumb:hover {
             background: #cc0000;
+        }
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column;
+                overflow-y: auto;
+            }
+            #mapContainer {
+                flex: none;
+                width: 100%;
+                padding: 10px;
+                box-shadow: none;
+            }
+            #mapDisclaimer {
+                font-size: 12px;
+            }
+            #map {
+                max-height: 50vh;
+                cursor: default;
+            }
+            #magnifier {
+                display: none !important;
+            }
+            #infoPanel {
+                flex: none;
+                width: 100%;
+                padding: 10px;
+                border-left: none;
+                border-top: 2px solid #303030;
+            }
+            #infoPanel h2 {
+                font-size: 20px;
+            }
+            #infoPanel p, .answer {
+                font-size: 14px;
+            }
+            .question {
+                font-size: 16px;
+                padding: 6px 10px;
+            }
+            .question .arrow {
+                font-size: 12px;
+            }
+        }
+        @media (max-width: 480px) {
+            #mapContainer {
+                padding: 5px;
+            }
+            #mapDisclaimer {
+                font-size: 10px;
+            }
+            #map {
+                max-height: 40vh;
+            }
+            #infoPanel {
+                padding: 5px;
+            }
+            #infoPanel h2 {
+                font-size: 18px;
+            }
+            #infoPanel p, .answer {
+                font-size: 12px;
+            }
+            .question {
+                font-size: 14px;
+                padding: 5px 8px;
+            }
         }
     </style>
 </head>
@@ -169,7 +238,6 @@
             <p>Civilian, looter, and Hunter's Stone make up your population. You’ll need them to run your kingdom.</p>
         </div>
         <div class="more info">
-         
             <p>Since lands are limited, you can create as many districts as your land can support. Sell the rights or manage them as you see fit!</p>
         </div>
     </div>
@@ -178,7 +246,6 @@
             const answer = document.getElementById(answerId);
             const isVisible = answer.classList.contains('show');
             
-            // Close all answers first
             document.querySelectorAll('.answer').forEach(ans => {
                 ans.classList.remove('show');
             });
@@ -186,37 +253,38 @@
                 q.classList.remove('active');
             });
 
-            // Toggle the clicked answer
             if (!isVisible) {
                 answer.classList.add('show');
                 element.classList.add('active');
             }
         }
 
-        // Magnifying glass effect
         const map = document.getElementById('map');
         const magnifier = document.getElementById('magnifier');
 
-        map.addEventListener('mousemove', (e) => {
-            const rect = map.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
+        const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
-            // Show magnifier and position it
-            magnifier.style.display = 'block';
-            magnifier.style.left = `${e.clientX}px`;
-            magnifier.style.top = `${e.clientY}px`;
+        if (!isTouchDevice) {
+            map.addEventListener('mousemove', (e) => {
+                const rect = map.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
 
-            // Set the background of the magnifier to the zoomed-in portion of the map
-            const zoomLevel = 2;
-            magnifier.style.backgroundImage = `url(${map.src})`;
-            magnifier.style.backgroundSize = `${rect.width * zoomLevel}px ${rect.height * zoomLevel}px`;
-            magnifier.style.backgroundPosition = `-${x * zoomLevel - 50}px -${y * zoomLevel - 50}px`;
-        });
+                magnifier.style.display = 'block';
+                magnifier.style.left = `${e.clientX}px`;
+                magnifier.style.top = `${e.clientY}px`;
+                const zoomLevel = 2;
+                magnifier.style.backgroundImage = `url(${map.src})`;
+                magnifier.style.backgroundSize = `${rect.width * zoomLevel}px ${rect.height * zoomLevel}px`;
+                magnifier.style.backgroundPosition = `-${x * zoomLevel - 50}px -${y * zoomLevel - 50}px`;
+            });
 
-        map.addEventListener('mouseleave', () => {
-            magnifier.style.display = 'none';
-        });
+            map.addEventListener('mouseleave', () => {
+                magnifier.style.display = 'none';
+            });
+        } else {
+            map.style.touchAction = 'pinch-zoom'; 
+        }
     </script>
 </body>
 </html>
