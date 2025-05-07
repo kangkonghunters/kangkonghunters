@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kangkong Hunters - Land</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background: #181818;
+            color: #fff;
+            font-family: 'Roboto', Arial, sans-serif;
+            margin: 0;
+            display: flex;
+            flex-direction: row;
+            height: 100vh;
+            overflow: hidden;
+        }
+        #mapContainer {
+            flex: 0 0 60%;
+            background: #212121;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            position: relative;
+        }
+        #mapDisclaimer {
+            font-size: 14px;
+            color: #ff5555;
+            margin-bottom: 10px;
+            text-align: center;
+            font-style: italic;
+        }
+        #map {
+            width: 100%;
+            height: auto;
+            border-radius: 8px;
+            border: 2px solid #303030;
+            cursor: none;
+        }
+        #magnifier {
+            display: none;
+            position: absolute;
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            border: 2px solid #ff5555;
+            background: rgba(255, 255, 255, 0.1);
+            pointer-events: none;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            background-repeat: no-repeat;
+            transform: translate(-50%, -50%);
+        }
+        #infoPanel {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #1e1e1e;
+            border-left: 2px solid #303030;
+        }
+        #infoPanel h2 {
+            margin-top: 0;
+            font-size: 24px;
+            color: #f1f1f1;
+            border-bottom: 2px solid #ff0000;
+            padding-bottom: 8px;
+        }
+        #infoPanel p {
+            font-size: 16px;
+            line-height: 1.6;
+            color: #d1d1d1;
+            margin: 10px 0;
+        }
+        .question {
+            font-size: 18px;
+            color: #ff5555;
+            cursor: pointer;
+            margin: 15px 0;
+            padding: 8px 12px;
+            background: #2c2c2c;
+            border-radius: 5px;
+            transition: background 0.3s ease, transform 0.1s ease;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .question:hover {
+            background: #3a3a3a;
+            transform: translateY(-2px);
+        }
+        .question:active {
+            transform: translateY(1px);
+        }
+        .question .arrow {
+            font-size: 14px;
+            transition: transform 0.3s ease;
+        }
+        .question.active .arrow {
+            transform: rotate(180deg);
+        }
+        .answer {
+            display: none;
+            font-size: 16px;
+            line-height: 1.6;
+            color: #d1d1d1;
+            margin: 5px 0 15px 10px;
+            padding: 10px;
+            background: #252525;
+            border-radius: 5px;
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+        .answer.show {
+            display: block;
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .additional-info h3 {
+            font-size: 20px;
+            color: #ff7777;
+            margin: 20px 0 10px;
+        }
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #2c2c2c;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #ff0000;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #cc0000;
+        }
+    </style>
+</head>
+<body>
+    <div id="mapContainer">
+        <div id="mapDisclaimer">Not the final game map, just an example</div>
+        <img id="map" src="map.png" alt="kangkong Hunters Map">
+        <div id="magnifier"></div>
+    </div>
+    <div id="infoPanel">
+        <h2>Kangkong Hunters Land Info</h2>
+        <div class="question" onclick="toggleAnswer('mintAnswer', this)">
+            How can I mint a land?
+            <span class="arrow">▼</span>
+        </div>
+        <div id="mintAnswer" class="answer">
+            <p>Land minting is free but only available to those who meet certain requirements.</p>
+        </div>
+        <div class="question" onclick="toggleAnswer('customizeAnswer', this)">
+            Can I customize my kingdom?
+            <span class="arrow">▼</span>
+        </div>
+        <div id="customizeAnswer" class="answer">
+            <p>Yes! You can customize your kingdom however you want. Set your own currency for trading, tweak skills (damage stays default), and more!</p>
+        </div>
+        <div class="question" onclick="toggleAnswer('stonesAnswer', this)">
+            What about the stones?
+            <span class="arrow">▼</span>
+        </div>
+        <div id="stonesAnswer" class="answer">
+            <p>Civilian, looter, and Hunter's Stone make up your population. You’ll need them to run your kingdom.</p>
+        </div>
+        <div class="more info">
+         
+            <p>Since lands are limited, you can create as many districts as your land can support. Sell the rights or manage them as you see fit!</p>
+        </div>
+    </div>
+    <script>
+        function toggleAnswer(answerId, element) {
+            const answer = document.getElementById(answerId);
+            const isVisible = answer.classList.contains('show');
+            
+            // Close all answers first
+            document.querySelectorAll('.answer').forEach(ans => {
+                ans.classList.remove('show');
+            });
+            document.querySelectorAll('.question').forEach(q => {
+                q.classList.remove('active');
+            });
+
+            // Toggle the clicked answer
+            if (!isVisible) {
+                answer.classList.add('show');
+                element.classList.add('active');
+            }
+        }
+
+        // Magnifying glass effect
+        const map = document.getElementById('map');
+        const magnifier = document.getElementById('magnifier');
+
+        map.addEventListener('mousemove', (e) => {
+            const rect = map.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            // Show magnifier and position it
+            magnifier.style.display = 'block';
+            magnifier.style.left = `${e.clientX}px`;
+            magnifier.style.top = `${e.clientY}px`;
+
+            // Set the background of the magnifier to the zoomed-in portion of the map
+            const zoomLevel = 2;
+            magnifier.style.backgroundImage = `url(${map.src})`;
+            magnifier.style.backgroundSize = `${rect.width * zoomLevel}px ${rect.height * zoomLevel}px`;
+            magnifier.style.backgroundPosition = `-${x * zoomLevel - 50}px -${y * zoomLevel - 50}px`;
+        });
+
+        map.addEventListener('mouseleave', () => {
+            magnifier.style.display = 'none';
+        });
+    </script>
+</body>
+</html>
